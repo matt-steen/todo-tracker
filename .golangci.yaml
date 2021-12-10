@@ -1,0 +1,12 @@
+linters:
+  enable-all: true
+  disable:
+    # deprecated:
+    - golint
+    - interfacer
+    - maligned
+    - scopelint
+
+    # godox doesn't allow TODO in comments
+    - godox
+  fast: false

@@ -23,6 +23,9 @@ clean:
 	$(GOCLEAN)
 	rm -f $(EXE_PATH)/$(BINARY_NAME)
 
+lint:
+	golangci-lint run
+
 format:
 	gofmt -w .
 
