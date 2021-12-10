@@ -20,5 +20,5 @@ type Label struct {
 type Status struct {
 	id    int
 	Name  string
-	todos []*Todo
+	Todos []*Todo
 }

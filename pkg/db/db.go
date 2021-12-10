@@ -18,9 +18,9 @@ var baseSQL string
 // Database manages the db connection and the state of the system.
 type Database struct {
 	conn     *sql.DB
-	statuses []*Status
-	labels   []*Label
-	todos    []*Todo
+	Statuses []*Status
+	Labels   []*Label
+	Todos    []*Todo
 }
 
 // NewDatabase connects to the sqlite database at the given filename, initializes the structure
@@ -33,9 +33,9 @@ func NewDatabase(filename string) (*Database, error) {
 
 	database := Database{
 		conn:     conn,
-		statuses: []*Status{},
-		labels:   []*Label{},
-		todos:    []*Todo{},
+		Statuses: []*Status{},
+		Labels:   []*Label{},
+		Todos:    []*Todo{},
 	}
 
 	err = database.initialize()
@@ -83,7 +83,7 @@ func (d *Database) loadData() error {
 		return err
 	}
 
-	err = d.loadLabels()
+	err = d.loadTodoLabels()
 	if err != nil {
 		return err
 	}
@@ -103,7 +103,7 @@ func (d *Database) loadLabels() error {
 		var label Label
 
 		rows.Scan(&label.id, &label.Name)
-		d.labels = append(d.labels, &label)
+		d.Labels = append(d.Labels, &label)
 	}
 
 	if err = rows.Err(); err != nil {
@@ -125,7 +125,7 @@ func (d *Database) loadStatuses() error {
 		var status Status
 
 		rows.Scan(&status.id, &status.Name)
-		d.statuses = append(d.statuses, &status)
+		d.Statuses = append(d.Statuses, &status)
 	}
 
 	if err = rows.Err(); err != nil {
@@ -152,11 +152,11 @@ func (d *Database) loadTodos() error {
 
 		rows.Scan(&todo.id, &todo.Title, &todo.Description, &statusID, &todo.CreatedDatetime, &todo.UpdatedDatetime)
 
-		d.todos = append(d.todos, &todo)
+		d.Todos = append(d.Todos, &todo)
 
-		for _, status := range d.statuses {
+		for _, status := range d.Statuses {
 			if status.id == statusID {
-				status.todos = append(status.todos, &todo)
+				status.Todos = append(status.Todos, &todo)
 
 				break
 			}
@@ -172,7 +172,7 @@ func (d *Database) loadTodos() error {
 
 func (d *Database) loadTodoLabels() error {
 	todoSQL := `SELECT todo_id, label_id
-				FROM todo_babel
+				FROM todo_label
 				ORDER BY todo_id, label_id`
 
 	rows, err := d.conn.Query(todoSQL)
@@ -189,7 +189,7 @@ func (d *Database) loadTodoLabels() error {
 
 		var label *Label
 
-		for _, l := range d.labels {
+		for _, l := range d.Labels {
 			if l.id == labelID {
 				label = l
 
@@ -197,7 +197,7 @@ func (d *Database) loadTodoLabels() error {
 			}
 		}
 
-		for _, todo := range d.todos {
+		for _, todo := range d.Todos {
 			if todo.id == todoID {
 				todo.Labels = append(todo.Labels, label)
 
@@ -218,7 +218,7 @@ func (d *Database) loadTodoLabels() error {
 func (d *Database) NewTodo(title, description string) (*Todo, error) {
 	var open *Status
 
-	for _, status := range d.statuses {
+	for _, status := range d.Statuses {
 		if status.Name == "open" {
 			open = status
 
@@ -226,7 +226,7 @@ func (d *Database) NewTodo(title, description string) (*Todo, error) {
 		}
 	}
 
-	rank := len(open.todos)
+	rank := len(open.Todos)
 	now := time.Now()
 	todo := &Todo{
 		Title:           title,
@@ -251,6 +251,7 @@ func (d *Database) NewTodo(title, description string) (*Todo, error) {
 		return nil, fmt.Errorf("error getting id of new todo %s: %w", title, err)
 	}
 
+	open.Todos = append(open.Todos, todo)
 	todo.id = int(id)
 
 	return todo, nil
@@ -268,7 +269,7 @@ func (d *Database) NewLabel(name string) (*Label, error) {
 	}
 
 	label := &Label{id: int(id), Name: name}
-	d.labels = append(d.labels, label)
+	d.Labels = append(d.Labels, label)
 
 	return label, nil
 }
@@ -299,15 +300,21 @@ func (d *Database) MoveDown() error { // TODO
 	return nil
 }
 
-func (d *Database) AddLabel(label *Label) error { // TODO
-	// Go objects:
-	// add label to local list
-	//
-	// add record in todo_labels
+func (d *Database) AddTodoLabel(todo *Todo, label *Label) error {
+	_, err := d.conn.Exec(
+		`INSERT INTO todo_label (todo_id, label_id) VALUES ($1, $2)`,
+		todo.id, label.id,
+	)
+	if err != nil {
+		return fmt.Errorf("error adding todo label: %w", err)
+	}
+
+	todo.Labels = append(todo.Labels, label)
+
 	return nil
 }
 
-func (d *Database) RemoveLabel() error { // TODO
+func (d *Database) RemoveTodoLabel() error { // TODO
 	// Go objects:
 	// remove label from local list - what's the cleanest way to do that?
 	//

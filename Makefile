@@ -17,7 +17,11 @@ build:
 	$(GOBUILD) -o $(EXE_PATH)/$(BINARY_NAME) $(PROJECT_PATH)/cmd/$(MODULE_NAME)
 
 test: 
-	$(GOTEST) -v ./...
+	$(GOTEST) -v -cover ./...
+
+test-cov: 
+	$(GOTEST) ./... -coverprofile=coverage.out
+	go tool cover -html=coverage.out
 
 clean: 
 	$(GOCLEAN)
