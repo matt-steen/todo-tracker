@@ -10,8 +10,6 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-// TODO: add tests (once the design solidifies a bit)
-
 //go:embed base.sql
 var baseSQL string
 
@@ -61,8 +59,12 @@ func (d *Database) initialize() error {
 }
 
 // Close closes the database connection.
-func (d *Database) Close() {
-	d.conn.Close()
+func (d *Database) Close() error {
+	if err := d.conn.Close(); err != nil {
+		return fmt.Errorf("error closing db: %w", err)
+	}
+
+	return nil
 }
 
 func (d *Database) loadData() error {
@@ -306,7 +308,7 @@ func (d *Database) AddTodoLabel(todo *Todo, label *Label) error {
 		todo.id, label.id,
 	)
 	if err != nil {
-		return fmt.Errorf("error adding todo label: %w", err)
+		return fmt.Errorf("error adding label '%s' to todo '%s': %w", label.Name, todo.Title, err)
 	}
 
 	todo.Labels = append(todo.Labels, label)
@@ -314,10 +316,23 @@ func (d *Database) AddTodoLabel(todo *Todo, label *Label) error {
 	return nil
 }
 
-func (d *Database) RemoveTodoLabel() error { // TODO
-	// Go objects:
-	// remove label from local list - what's the cleanest way to do that?
-	//
-	// remove record in todo_labels
+func (d *Database) RemoveTodoLabel(todo *Todo, label *Label) error {
+	_, err := d.conn.Exec(
+		`DELETE FROM todo_label WHERE todo_id = $1 AND label_id = $2`,
+		todo.id, label.id,
+	)
+	if err != nil {
+		return fmt.Errorf("error removing label '%s' from todo '%s': %w", label.Name, todo.Title, err)
+	}
+
+	// remove the label from the list
+	for i, l := range todo.Labels {
+		if l.id == label.id {
+			todo.Labels = append(todo.Labels[:i], todo.Labels[i+1:]...)
+
+			break
+		}
+	}
+
 	return nil
 }

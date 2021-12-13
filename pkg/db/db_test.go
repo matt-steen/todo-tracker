@@ -67,6 +67,9 @@ func TestNewDatabaseIdempotent(t *testing.T) {
 	assert.Equal(5, len(database.Statuses))
 	assert.Equal(9, len(database.Labels))
 
+	err = database.Close()
+	assert.Nil(err)
+
 	database2, err := db.NewDatabase(tempFile.Name())
 	assert.NotNil(database2)
 	assert.Nil(err)
@@ -146,7 +149,35 @@ func TestAddTodoLabelTwice(t *testing.T) {
 
 	err = database.AddTodoLabel(todo, label)
 	assert.NotNil(err)
-	assert.Equal("error adding todo label: UNIQUE constraint failed: todo_label.todo_id, todo_label.label_id", err.Error())
+	assert.Equal(
+		"error adding label 'task' to todo 'do some work': UNIQUE constraint failed: todo_label.todo_id, todo_label.label_id",
+		err.Error(),
+	)
+}
+
+func TestRemoveTodoLabel(t *testing.T) {
+	t.Parallel()
+
+	assert := assert.New(t)
+
+	database := getDB(assert)
+	todo := addTodo(assert, database)
+
+	err := database.AddTodoLabel(todo, database.Labels[0])
+	assert.Nil(err)
+
+	err = database.AddTodoLabel(todo, database.Labels[1])
+	assert.Nil(err)
+
+	err = database.AddTodoLabel(todo, database.Labels[2])
+	assert.Nil(err)
+
+	err = database.RemoveTodoLabel(todo, database.Labels[0])
+	assert.Nil(err)
+
+	// confirm preservation of the order of the remaining labels
+	assert.Equal(database.Labels[1].Name, todo.Labels[0].Name)
+	assert.Equal(database.Labels[2].Name, todo.Labels[1].Name)
 }
 
 // TODO: setup something moderately complicated and then reload it to fully verify db init
