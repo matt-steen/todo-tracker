@@ -97,7 +97,7 @@ func (d *Database) loadData(ctx context.Context) error {
 func (d *Database) loadLabels(ctx context.Context) error {
 	labelSQL := `SELECT id, name FROM label`
 
-	rows, err := d.conn.Query(labelSQL)
+	rows, err := d.conn.QueryContext(ctx, labelSQL)
 	if err != nil {
 		return fmt.Errorf("error loading labels: %w", err)
 	}
@@ -125,7 +125,7 @@ func (d *Database) loadLabels(ctx context.Context) error {
 func (d *Database) loadStatuses(ctx context.Context) error {
 	statusSQL := `SELECT id, name FROM status`
 
-	rows, err := d.conn.Query(statusSQL)
+	rows, err := d.conn.QueryContext(ctx, statusSQL)
 	if err != nil {
 		return fmt.Errorf("error loading statuses: %w", err)
 	}
@@ -155,7 +155,7 @@ func (d *Database) loadTodos(ctx context.Context) error {
 				FROM todo
 				ORDER BY status_id, rank`
 
-	rows, err := d.conn.Query(todoSQL)
+	rows, err := d.conn.QueryContext(ctx, todoSQL)
 	if err != nil {
 		return fmt.Errorf("error loading todos: %w", err)
 	}
@@ -195,7 +195,7 @@ func (d *Database) loadTodoLabels(ctx context.Context) error {
 				FROM todo_label
 				ORDER BY todo_id, label_id`
 
-	rows, err := d.conn.Query(todoSQL)
+	rows, err := d.conn.QueryContext(ctx, todoSQL)
 	if err != nil {
 		return fmt.Errorf("error loading todos: %w", err)
 	}
@@ -300,22 +300,24 @@ func (d *Database) NewLabel(ctx context.Context, name string) (*Label, error) {
 }
 
 func (d *Database) ChangeStatus(ctx context.Context, todo *Todo, status *Status) error { // TODO
-	// Go objects:
-	// move todo from current status to new status (bottom of the list)
-	// update todo status_id and rank
-	// update ranks of anything behind this one in the old list
-	//
+	// tx, err := d.conn.BeginTx(ctx, nil)
 	// DB:
 	// update todo status_id and rank
 	// update rank of anything behind this one in the list -> need to operate in a transaction!
+	//
+	// Go objects:
+	// move todo from current status to new status (bottom of the list)
+	//     error if closed is already full! should that also be an error on db load?
+	// update todo status_id and rank
+	// update ranks of anything behind this one in the old list
 	return nil
 }
 
 func (d *Database) MoveUp(ctx context.Context) error { // TODO
-	// Go objects:
-	// updat rank for this todo and whatever is above it
-	//
 	// DB:
+	// update rank for this todo and whatever is above it (in a transaction)
+	//
+	// Go objects:
 	// update rank for this todo and whatever is above it
 	return nil
 }
