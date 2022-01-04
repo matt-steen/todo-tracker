@@ -1,6 +1,7 @@
 package db_test
 
 import (
+	"context"
 	"io/ioutil"
 	"testing"
 
@@ -12,7 +13,7 @@ func getDB(assert *assert.Assertions) *db.Database {
 	tempFile, err := ioutil.TempFile("/tmp", "test_new_database*")
 	assert.Nil(err)
 
-	database, err := db.NewDatabase(tempFile.Name())
+	database, err := db.NewDatabase(context.Background(), tempFile.Name())
 	assert.NotNil(database)
 	assert.Nil(err)
 
@@ -22,7 +23,7 @@ func getDB(assert *assert.Assertions) *db.Database {
 func addTodo(assert *assert.Assertions, database *db.Database) *db.Todo {
 	title := "do some work"
 	description := "here are some details of what the work is or where to find out more"
-	todo, err := database.NewTodo(title, description)
+	todo, err := database.NewTodo(context.Background(), title, description)
 	assert.Nil(err)
 
 	return todo
@@ -33,7 +34,7 @@ func TestNewDatabaseBadFile(t *testing.T) {
 
 	assert := assert.New(t)
 
-	database, err := db.NewDatabase("/alwfkjasfd/asdflkjdsal.sqlite")
+	database, err := db.NewDatabase(context.Background(), "/alwfkjasfd/asdflkjdsal.sqlite")
 	assert.Nil(database)
 	assert.NotNil(err)
 	assert.Equal("error running base sql: unable to open database file: no such file or directory", err.Error())
@@ -47,7 +48,7 @@ func TestNewDatabase(t *testing.T) {
 	tempFile, err := ioutil.TempFile("/tmp", "test_new_database")
 	assert.Nil(err)
 
-	database, err := db.NewDatabase(tempFile.Name())
+	database, err := db.NewDatabase(context.Background(), tempFile.Name())
 	assert.NotNil(database)
 	assert.Nil(err)
 }
@@ -60,7 +61,7 @@ func TestNewDatabaseIdempotent(t *testing.T) {
 	tempFile, err := ioutil.TempFile("/tmp", "test_new_database*")
 	assert.Nil(err)
 
-	database, err := db.NewDatabase(tempFile.Name())
+	database, err := db.NewDatabase(context.Background(), tempFile.Name())
 	assert.NotNil(database)
 	assert.Nil(err)
 	assert.Equal(0, len(database.Todos))
@@ -70,7 +71,7 @@ func TestNewDatabaseIdempotent(t *testing.T) {
 	err = database.Close()
 	assert.Nil(err)
 
-	database2, err := db.NewDatabase(tempFile.Name())
+	database2, err := db.NewDatabase(context.Background(), tempFile.Name())
 	assert.NotNil(database2)
 	assert.Nil(err)
 	assert.Equal(0, len(database2.Todos))
@@ -86,7 +87,7 @@ func TestNewLabel(t *testing.T) {
 	database := getDB(assert)
 
 	name := "busywork"
-	label, err := database.NewLabel(name)
+	label, err := database.NewLabel(context.Background(), name)
 	assert.Nil(err)
 	assert.Equal(name, label.Name)
 }
@@ -100,7 +101,7 @@ func TestNewTodo(t *testing.T) {
 
 	title := "do some work"
 	description := "here are some details of what the work is or where to find out more"
-	todo, err := database.NewTodo(title, description)
+	todo, err := database.NewTodo(context.Background(), title, description)
 	assert.Nil(err)
 
 	assert.Equal(title, todo.Title)
@@ -126,7 +127,7 @@ func TestAddTodoLabel(t *testing.T) {
 
 	label := database.Labels[0]
 
-	err := database.AddTodoLabel(todo, label)
+	err := database.AddTodoLabel(context.Background(), todo, label)
 	assert.Nil(err)
 
 	assert.Equal(label.Name, todo.Labels[0].Name)
@@ -142,12 +143,12 @@ func TestAddTodoLabelTwice(t *testing.T) {
 
 	label := database.Labels[0]
 
-	err := database.AddTodoLabel(todo, label)
+	err := database.AddTodoLabel(context.Background(), todo, label)
 	assert.Nil(err)
 
 	assert.Equal(label.Name, todo.Labels[0].Name)
 
-	err = database.AddTodoLabel(todo, label)
+	err = database.AddTodoLabel(context.Background(), todo, label)
 	assert.NotNil(err)
 	assert.Equal(
 		"error adding label 'task' to todo 'do some work': UNIQUE constraint failed: todo_label.todo_id, todo_label.label_id",
@@ -163,16 +164,16 @@ func TestRemoveTodoLabel(t *testing.T) {
 	database := getDB(assert)
 	todo := addTodo(assert, database)
 
-	err := database.AddTodoLabel(todo, database.Labels[0])
+	err := database.AddTodoLabel(context.Background(), todo, database.Labels[0])
 	assert.Nil(err)
 
-	err = database.AddTodoLabel(todo, database.Labels[1])
+	err = database.AddTodoLabel(context.Background(), todo, database.Labels[1])
 	assert.Nil(err)
 
-	err = database.AddTodoLabel(todo, database.Labels[2])
+	err = database.AddTodoLabel(context.Background(), todo, database.Labels[2])
 	assert.Nil(err)
 
-	err = database.RemoveTodoLabel(todo, database.Labels[0])
+	err = database.RemoveTodoLabel(context.Background(), todo, database.Labels[0])
 	assert.Nil(err)
 
 	// confirm preservation of the order of the remaining labels

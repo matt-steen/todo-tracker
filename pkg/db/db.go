@@ -1,6 +1,7 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 	_ "embed"
 	"fmt"
@@ -23,7 +24,7 @@ type Database struct {
 
 // NewDatabase connects to the sqlite database at the given filename, initializes the structure
 // if not present, and loads existing data into memory.
-func NewDatabase(filename string) (*Database, error) {
+func NewDatabase(ctx context.Context, filename string) (*Database, error) {
 	conn, err := sql.Open("sqlite3", filename)
 	if err != nil {
 		return nil, fmt.Errorf("error connecting to sqlite db at %s: %w", filename, err)
@@ -36,12 +37,12 @@ func NewDatabase(filename string) (*Database, error) {
 		Todos:    []*Todo{},
 	}
 
-	err = database.initialize()
+	err = database.initialize(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	err = database.loadData()
+	err = database.loadData(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -49,9 +50,9 @@ func NewDatabase(filename string) (*Database, error) {
 	return &database, nil
 }
 
-func (d *Database) initialize() error {
+func (d *Database) initialize(ctx context.Context) error {
 	// run idempotent setup sql to create empty tables if they don't exist
-	if _, err := d.conn.Exec(baseSQL); err != nil {
+	if _, err := d.conn.ExecContext(ctx, baseSQL); err != nil {
 		return fmt.Errorf("error running base sql: %w", err)
 	}
 
@@ -67,25 +68,25 @@ func (d *Database) Close() error {
 	return nil
 }
 
-func (d *Database) loadData() error {
+func (d *Database) loadData(ctx context.Context) error {
 	var err error
 
-	err = d.loadLabels()
+	err = d.loadLabels(ctx)
 	if err != nil {
 		return err
 	}
 
-	err = d.loadStatuses()
+	err = d.loadStatuses(ctx)
 	if err != nil {
 		return err
 	}
 
-	err = d.loadTodos()
+	err = d.loadTodos(ctx)
 	if err != nil {
 		return err
 	}
 
-	err = d.loadTodoLabels()
+	err = d.loadTodoLabels(ctx)
 	if err != nil {
 		return err
 	}
@@ -93,7 +94,7 @@ func (d *Database) loadData() error {
 	return nil
 }
 
-func (d *Database) loadLabels() error {
+func (d *Database) loadLabels(ctx context.Context) error {
 	labelSQL := `SELECT id, name FROM label`
 
 	rows, err := d.conn.Query(labelSQL)
@@ -121,7 +122,7 @@ func (d *Database) loadLabels() error {
 	return nil
 }
 
-func (d *Database) loadStatuses() error {
+func (d *Database) loadStatuses(ctx context.Context) error {
 	statusSQL := `SELECT id, name FROM status`
 
 	rows, err := d.conn.Query(statusSQL)
@@ -149,7 +150,7 @@ func (d *Database) loadStatuses() error {
 	return nil
 }
 
-func (d *Database) loadTodos() error {
+func (d *Database) loadTodos(ctx context.Context) error {
 	todoSQL := `SELECT id, title, description, status_id, created_datetime, updated_datetime
 				FROM todo
 				ORDER BY status_id, rank`
@@ -189,7 +190,7 @@ func (d *Database) loadTodos() error {
 	return nil
 }
 
-func (d *Database) loadTodoLabels() error {
+func (d *Database) loadTodoLabels(ctx context.Context) error {
 	todoSQL := `SELECT todo_id, label_id
 				FROM todo_label
 				ORDER BY todo_id, label_id`
@@ -239,7 +240,7 @@ func (d *Database) loadTodoLabels() error {
 
 // NewTodo creates a new todo with the given title and description; the todo is added
 // at the end of the open list.
-func (d *Database) NewTodo(title, description string) (*Todo, error) {
+func (d *Database) NewTodo(ctx context.Context, title, description string) (*Todo, error) {
 	var open *Status
 
 	for _, status := range d.Statuses {
@@ -261,7 +262,7 @@ func (d *Database) NewTodo(title, description string) (*Todo, error) {
 		UpdatedDatetime: &now,
 	}
 
-	result, err := d.conn.Exec(
+	result, err := d.conn.ExecContext(ctx,
 		`INSERT INTO todo (title, description, status_id, rank, created_datetime, updated_datetime) 
 		     VALUES ($1, $2, $3, $4, $5, $6)`,
 		todo.Title, todo.Description, open.id, todo.Rank, todo.CreatedDatetime, todo.UpdatedDatetime,
@@ -281,8 +282,8 @@ func (d *Database) NewTodo(title, description string) (*Todo, error) {
 	return todo, nil
 }
 
-func (d *Database) NewLabel(name string) (*Label, error) {
-	result, err := d.conn.Exec(`INSERT INTO label (name) VALUES ($1)`, name)
+func (d *Database) NewLabel(ctx context.Context, name string) (*Label, error) {
+	result, err := d.conn.ExecContext(ctx, `INSERT INTO label (name) VALUES ($1)`, name)
 	if err != nil {
 		return nil, fmt.Errorf("error adding label %s: %w", name, err)
 	}
@@ -298,7 +299,7 @@ func (d *Database) NewLabel(name string) (*Label, error) {
 	return label, nil
 }
 
-func (d *Database) ChangeStatus(todo *Todo, status *Status) error { // TODO
+func (d *Database) ChangeStatus(ctx context.Context, todo *Todo, status *Status) error { // TODO
 	// Go objects:
 	// move todo from current status to new status (bottom of the list)
 	// update todo status_id and rank
@@ -310,7 +311,7 @@ func (d *Database) ChangeStatus(todo *Todo, status *Status) error { // TODO
 	return nil
 }
 
-func (d *Database) MoveUp() error { // TODO
+func (d *Database) MoveUp(ctx context.Context) error { // TODO
 	// Go objects:
 	// updat rank for this todo and whatever is above it
 	//
@@ -319,13 +320,13 @@ func (d *Database) MoveUp() error { // TODO
 	return nil
 }
 
-func (d *Database) MoveDown() error { // TODO
+func (d *Database) MoveDown(ctx context.Context) error { // TODO
 	// model on MoveUp...
 	return nil
 }
 
-func (d *Database) AddTodoLabel(todo *Todo, label *Label) error {
-	_, err := d.conn.Exec(
+func (d *Database) AddTodoLabel(ctx context.Context, todo *Todo, label *Label) error {
+	_, err := d.conn.ExecContext(ctx,
 		`INSERT INTO todo_label (todo_id, label_id) VALUES ($1, $2)`,
 		todo.id, label.id,
 	)
@@ -338,8 +339,8 @@ func (d *Database) AddTodoLabel(todo *Todo, label *Label) error {
 	return nil
 }
 
-func (d *Database) RemoveTodoLabel(todo *Todo, label *Label) error {
-	_, err := d.conn.Exec(
+func (d *Database) RemoveTodoLabel(ctx context.Context, todo *Todo, label *Label) error {
+	_, err := d.conn.ExecContext(ctx,
 		`DELETE FROM todo_label WHERE todo_id = $1 AND label_id = $2`,
 		todo.id, label.id,
 	)
