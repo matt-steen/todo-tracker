@@ -101,10 +101,16 @@ func (d *Database) loadLabels() error {
 		return fmt.Errorf("error loading labels: %w", err)
 	}
 
+	defer rows.Close()
+
 	for rows.Next() {
 		var label Label
 
-		rows.Scan(&label.id, &label.Name)
+		err = rows.Scan(&label.id, &label.Name)
+		if err != nil {
+			return fmt.Errorf("error scanning label: %w", err)
+		}
+
 		d.Labels = append(d.Labels, &label)
 	}
 
@@ -123,10 +129,16 @@ func (d *Database) loadStatuses() error {
 		return fmt.Errorf("error loading statuses: %w", err)
 	}
 
+	defer rows.Close()
+
 	for rows.Next() {
 		var status Status
 
-		rows.Scan(&status.id, &status.Name)
+		err = rows.Scan(&status.id, &status.Name)
+		if err != nil {
+			return fmt.Errorf("error scanning status: %w", err)
+		}
+
 		d.Statuses = append(d.Statuses, &status)
 	}
 
@@ -147,12 +159,17 @@ func (d *Database) loadTodos() error {
 		return fmt.Errorf("error loading todos: %w", err)
 	}
 
+	defer rows.Close()
+
 	for rows.Next() {
 		var todo Todo
 
 		var statusID int
 
-		rows.Scan(&todo.id, &todo.Title, &todo.Description, &statusID, &todo.CreatedDatetime, &todo.UpdatedDatetime)
+		err = rows.Scan(&todo.id, &todo.Title, &todo.Description, &statusID, &todo.CreatedDatetime, &todo.UpdatedDatetime)
+		if err != nil {
+			return fmt.Errorf("error scanning todo: %w", err)
+		}
 
 		d.Todos = append(d.Todos, &todo)
 
@@ -182,12 +199,17 @@ func (d *Database) loadTodoLabels() error {
 		return fmt.Errorf("error loading todos: %w", err)
 	}
 
+	defer rows.Close()
+
 	for rows.Next() {
 		var todoID int
 
 		var labelID int
 
-		rows.Scan(&todoID, &labelID)
+		err = rows.Scan(&todoID, &labelID)
+		if err != nil {
+			return fmt.Errorf("error scanning todo-label: %w", err)
+		}
 
 		var label *Label
 
@@ -209,7 +231,7 @@ func (d *Database) loadTodoLabels() error {
 	}
 
 	if err = rows.Err(); err != nil {
-		return fmt.Errorf("error scanning todos: %w", err)
+		return fmt.Errorf("error scanning todo-labels: %w", err)
 	}
 
 	return nil
@@ -248,13 +270,13 @@ func (d *Database) NewTodo(title, description string) (*Todo, error) {
 		return nil, fmt.Errorf("error adding todo: %w", err)
 	}
 
-	id, err := result.LastInsertId()
+	todoID, err := result.LastInsertId()
 	if err != nil {
 		return nil, fmt.Errorf("error getting id of new todo %s: %w", title, err)
 	}
 
 	open.Todos = append(open.Todos, todo)
-	todo.id = int(id)
+	todo.id = int(todoID)
 
 	return todo, nil
 }
