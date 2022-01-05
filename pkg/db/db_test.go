@@ -2,6 +2,7 @@ package db_test
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
 	"testing"
 
@@ -20,13 +21,18 @@ func getDB(assert *assert.Assertions) *db.Database {
 	return database
 }
 
-func addTodo(assert *assert.Assertions, database *db.Database) *db.Todo {
-	title := "do some work"
-	description := "here are some details of what the work is or where to find out more"
+func addTodo(assert *assert.Assertions, database *db.Database, title, description string) *db.Todo {
 	todo, err := database.NewTodo(context.Background(), title, description)
 	assert.Nil(err)
 
 	return todo
+}
+
+func addDefaultTodo(assert *assert.Assertions, database *db.Database) *db.Todo {
+	title := "do some work"
+	description := "here are some details of what the work is or where to find out more"
+
+	return addTodo(assert, database, title, description)
 }
 
 func TestNewDatabaseBadFile(t *testing.T) {
@@ -123,7 +129,7 @@ func TestAddTodoLabel(t *testing.T) {
 	assert := assert.New(t)
 
 	database := getDB(assert)
-	todo := addTodo(assert, database)
+	todo := addDefaultTodo(assert, database)
 
 	label := database.Labels[0]
 
@@ -139,7 +145,7 @@ func TestAddTodoLabelTwice(t *testing.T) {
 	assert := assert.New(t)
 
 	database := getDB(assert)
-	todo := addTodo(assert, database)
+	todo := addDefaultTodo(assert, database)
 
 	label := database.Labels[0]
 
@@ -162,7 +168,7 @@ func TestRemoveTodoLabel(t *testing.T) {
 	assert := assert.New(t)
 
 	database := getDB(assert)
-	todo := addTodo(assert, database)
+	todo := addDefaultTodo(assert, database)
 
 	err := database.AddTodoLabel(context.Background(), todo, database.Labels[0])
 	assert.Nil(err)
@@ -179,6 +185,59 @@ func TestRemoveTodoLabel(t *testing.T) {
 	// confirm preservation of the order of the remaining labels
 	assert.Equal(database.Labels[1].Name, todo.Labels[0].Name)
 	assert.Equal(database.Labels[2].Name, todo.Labels[1].Name)
+}
+
+func TestChangeStatus(t *testing.T) {
+	t.Parallel()
+
+	assert := assert.New(t)
+
+	database := getDB(assert)
+	todo1 := addTodo(assert, database, "todo 1", "")
+	todo2 := addTodo(assert, database, "todo 2", "")
+	todo3 := addTodo(assert, database, "todo 3", "")
+	todo4 := addTodo(assert, database, "todo 4", "")
+
+	assert.Equal(0, todo1.Rank)
+	assert.Equal(1, todo2.Rank)
+	assert.Equal(2, todo3.Rank)
+	assert.Equal(3, todo4.Rank)
+
+	err := database.ChangeStatus(context.Background(), todo2, database.Statuses["open"], database.Statuses["closed"])
+	assert.Nil(err)
+
+	assert.Equal(0, todo2.Rank)
+	assert.Equal("todo 2", database.Statuses["closed"].Todos[0].Title)
+	assert.Equal(1, len(database.Statuses["closed"].Todos))
+
+	assert.Equal(0, todo1.Rank)
+	assert.Equal(1, todo3.Rank)
+	assert.Equal(2, todo4.Rank)
+	assert.Equal(3, len(database.Statuses["open"].Todos))
+}
+
+func TestChangeStatusValidatesClosedListLimit(t *testing.T) {
+	t.Parallel()
+
+	assert := assert.New(t)
+
+	database := getDB(assert)
+	todos := []*db.Todo{}
+
+	for i := 0; i < 6; i++ {
+		todo := addTodo(assert, database, fmt.Sprintf("todo %d", i), "")
+		todos = append(todos, todo)
+	}
+
+	for i, todo := range todos {
+		err := database.ChangeStatus(context.Background(), todo, database.Statuses["open"], database.Statuses["closed"])
+
+		if i < 5 {
+			assert.Nil(err)
+		} else {
+			assert.ErrorIs(err, db.ErrMaxClosedTodos)
+		}
+	}
 }
 
 // TODO: setup something moderately complicated and then reload it to fully verify db init

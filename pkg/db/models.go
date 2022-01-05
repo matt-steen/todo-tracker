@@ -7,7 +7,7 @@ type Todo struct {
 	Title           string
 	Description     string
 	Labels          []*Label
-	Rank            int
+	Rank            int // starts at 0
 	CreatedDatetime *time.Time
 	UpdatedDatetime *time.Time
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	_ "embed"
+	"errors"
 	"fmt"
 	"time"
 
@@ -11,13 +12,23 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
+const MaxClosedTodos = 5
+
 //go:embed base.sql
 var baseSQL string
+
+var (
+	ErrMaxClosedTodos = fmt.Errorf(
+		"there are already %d closed todos. Complete or abandon something before starting something new",
+		MaxClosedTodos,
+	)
+	ErrInvalidTodoMove = errors.New("cannot move a todo from one status to itself")
+)
 
 // Database manages the db connection and the state of the system.
 type Database struct {
 	conn     *sql.DB
-	Statuses []*Status
+	Statuses map[string]*Status
 	Labels   []*Label
 	Todos    []*Todo
 }
@@ -32,7 +43,7 @@ func NewDatabase(ctx context.Context, filename string) (*Database, error) {
 
 	database := Database{
 		conn:     conn,
-		Statuses: []*Status{},
+		Statuses: map[string]*Status{},
 		Labels:   []*Label{},
 		Todos:    []*Todo{},
 	}
@@ -66,6 +77,16 @@ func (d *Database) Close() error {
 	}
 
 	return nil
+}
+
+// rollbackOnError attempts to rollback the transaction; if rollback fails, wrap the existing error with information
+// on the failed rollback.
+func rollbackOnError(tx *sql.Tx, err error) error {
+	if rollbackErr := tx.Rollback(); rollbackErr != nil {
+		return fmt.Errorf("error rolling back transaction: '%s' after %w", rollbackErr, err)
+	}
+
+	return err
 }
 
 func (d *Database) loadData(ctx context.Context) error {
@@ -140,7 +161,7 @@ func (d *Database) loadStatuses(ctx context.Context) error {
 			return fmt.Errorf("error scanning status: %w", err)
 		}
 
-		d.Statuses = append(d.Statuses, &status)
+		d.Statuses[status.Name] = &status
 	}
 
 	if err = rows.Err(); err != nil {
@@ -241,15 +262,7 @@ func (d *Database) loadTodoLabels(ctx context.Context) error {
 // NewTodo creates a new todo with the given title and description; the todo is added
 // at the end of the open list.
 func (d *Database) NewTodo(ctx context.Context, title, description string) (*Todo, error) {
-	var open *Status
-
-	for _, status := range d.Statuses {
-		if status.Name == "open" {
-			open = status
-
-			break
-		}
-	}
+	open := d.Statuses["open"]
 
 	rank := len(open.Todos)
 	now := time.Now()
@@ -299,17 +312,57 @@ func (d *Database) NewLabel(ctx context.Context, name string) (*Label, error) {
 	return label, nil
 }
 
-func (d *Database) ChangeStatus(ctx context.Context, todo *Todo, status *Status) error { // TODO
-	// tx, err := d.conn.BeginTx(ctx, nil)
-	// DB:
-	// update todo status_id and rank
-	// update rank of anything behind this one in the list -> need to operate in a transaction!
-	//
-	// Go objects:
-	// move todo from current status to new status (bottom of the list)
-	//     error if closed is already full! should that also be an error on db load?
-	// update todo status_id and rank
-	// update ranks of anything behind this one in the old list
+func (d *Database) ChangeStatus(ctx context.Context, todo *Todo, oldStatus, newStatus *Status) error {
+	if newStatus.Name == "closed" && len(newStatus.Todos) >= MaxClosedTodos {
+		return ErrMaxClosedTodos
+	}
+
+	if newStatus.id == oldStatus.id {
+		return ErrInvalidTodoMove
+	}
+
+	txn, err := d.conn.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("error opening transaction: %w", err)
+	}
+
+	_, err = txn.ExecContext(
+		ctx,
+		`UPDATE todo SET status_id=$1, rank=$2 WHERE id=$3`,
+		newStatus.id,
+		len(newStatus.Todos),
+		todo.id,
+	)
+	if err != nil {
+		return rollbackOnError(txn, fmt.Errorf("error updating todo: %w", err))
+	}
+
+	for _, todoToUpdate := range oldStatus.Todos[todo.Rank+1:] {
+		_, err = txn.ExecContext(
+			ctx,
+			`UPDATE todo SET rank=rank - 1 WHERE id=$1`,
+			todoToUpdate.id,
+		)
+		if err != nil {
+			return rollbackOnError(txn, fmt.Errorf("error updating todo rank: %w", err))
+		}
+	}
+
+	err = txn.Commit()
+	if err != nil {
+		return fmt.Errorf("error committing changes: %w", err)
+	}
+
+	// don't change objects until after transaction is committed to avoid complexity of reversion if the commit fails
+	for _, todoToUpdate := range oldStatus.Todos[todo.Rank+1:] {
+		todoToUpdate.Rank--
+	}
+
+	oldStatus.Todos = append(oldStatus.Todos[:todo.Rank], oldStatus.Todos[todo.Rank+1:]...)
+	newStatus.Todos = append(newStatus.Todos, todo)
+
+	todo.Rank = len(newStatus.Todos) - 1
+
 	return nil
 }
 
