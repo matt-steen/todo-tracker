@@ -8,6 +8,7 @@ type Todo struct {
 	Description     string
 	Labels          []*Label
 	Rank            int // starts at 0
+	Status          *Status
 	CreatedDatetime *time.Time
 	UpdatedDatetime *time.Time
 }

@@ -203,12 +203,15 @@ func TestChangeStatus(t *testing.T) {
 	assert.Equal(2, todo3.Rank)
 	assert.Equal(3, todo4.Rank)
 
+	assert.Equal(todo2.Status, database.Statuses["open"])
+
 	err := database.ChangeStatus(context.Background(), todo2, database.Statuses["open"], database.Statuses["closed"])
 	assert.Nil(err)
 
 	assert.Equal(0, todo2.Rank)
-	assert.Equal("todo 2", database.Statuses["closed"].Todos[0].Title)
 	assert.Equal(1, len(database.Statuses["closed"].Todos))
+	assert.Equal(database.Statuses["closed"], todo2.Status)
+	assert.Equal("todo 2", database.Statuses["closed"].Todos[0].Title)
 
 	assert.Equal(0, todo1.Rank)
 	assert.Equal(1, todo3.Rank)
@@ -238,6 +241,50 @@ func TestChangeStatusValidatesClosedListLimit(t *testing.T) {
 			assert.ErrorIs(err, db.ErrMaxClosedTodos)
 		}
 	}
+}
+
+func TestMoveUpTodo(t *testing.T) {
+	t.Parallel()
+
+	assert := assert.New(t)
+
+	database := getDB(assert)
+	todo1 := addTodo(assert, database, "todo 1", "")
+	todo2 := addTodo(assert, database, "todo 2", "")
+
+	assert.Equal(0, todo1.Rank)
+	assert.Equal(1, todo2.Rank)
+
+	err := database.MoveUp(context.Background(), todo1)
+	assert.ErrorIs(err, db.ErrCantMoveFirstTodoUp)
+
+	err = database.MoveUp(context.Background(), todo2)
+	assert.Nil(err)
+
+	assert.Equal(1, todo1.Rank)
+	assert.Equal(0, todo2.Rank)
+}
+
+func TestMoveDownTodo(t *testing.T) {
+	t.Parallel()
+
+	assert := assert.New(t)
+
+	database := getDB(assert)
+	todo1 := addTodo(assert, database, "todo 1", "")
+	todo2 := addTodo(assert, database, "todo 2", "")
+
+	assert.Equal(0, todo1.Rank)
+	assert.Equal(1, todo2.Rank)
+
+	err := database.MoveDown(context.Background(), todo2)
+	assert.ErrorIs(err, db.ErrCantMoveLastTodoDown)
+
+	err = database.MoveDown(context.Background(), todo1)
+	assert.Nil(err)
+
+	assert.Equal(1, todo1.Rank)
+	assert.Equal(0, todo2.Rank)
 }
 
 // TODO: setup something moderately complicated and then reload it to fully verify db init
