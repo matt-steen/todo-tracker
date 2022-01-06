@@ -57,6 +57,7 @@ func TestNewDatabase(t *testing.T) {
 	database, err := db.NewDatabase(context.Background(), tempFile.Name())
 	assert.NotNil(database)
 	assert.Nil(err)
+	database.Close()
 }
 
 func TestNewDatabaseIdempotent(t *testing.T) {
@@ -83,6 +84,8 @@ func TestNewDatabaseIdempotent(t *testing.T) {
 	assert.Equal(0, len(database2.Todos))
 	assert.Equal(5, len(database2.Statuses))
 	assert.Equal(9, len(database2.Labels))
+
+	database2.Close()
 }
 
 func TestLoadComplexState(t *testing.T) {
@@ -97,6 +100,8 @@ func TestLoadComplexState(t *testing.T) {
 
 	database, err := db.NewDatabase(ctx, tempFile.Name())
 	assert.Nil(err)
+
+	defer database.Close()
 
 	todo1 := addTodo(assert, database, "todo 1", "")
 	todo2 := addTodo(assert, database, "todo 2", "")
@@ -120,6 +125,8 @@ func TestLoadComplexState(t *testing.T) {
 	database2, err := db.NewDatabase(ctx, tempFile.Name())
 	assert.Nil(err)
 
+	defer database2.Close()
+
 	assert.Equal(3, len(database2.Todos))
 	assert.Equal(2, len(database2.Statuses["open"].Todos))
 	assert.Equal(1, len(database2.Statuses["closed"].Todos))
@@ -139,11 +146,44 @@ func TestNewLabel(t *testing.T) {
 	assert := assert.New(t)
 
 	database := getDB(assert)
+	defer database.Close()
 
 	name := "busywork"
 	label, err := database.NewLabel(context.Background(), name)
 	assert.Nil(err)
 	assert.Equal(name, label.Name)
+}
+
+func TestUpdateLabel(t *testing.T) {
+	t.Parallel()
+
+	assert := assert.New(t)
+
+	ctx := context.Background()
+
+	tempFile, err := ioutil.TempFile("/tmp", "test_new_database*")
+	assert.Nil(err)
+
+	database, err := db.NewDatabase(ctx, tempFile.Name())
+	assert.Nil(err)
+
+	name := "tag"
+	label, err := database.NewLabel(ctx, name)
+	assert.Nil(err)
+	assert.Equal(name, label.Name)
+
+	name = "heuer"
+	err = database.UpdateLabel(ctx, label, name)
+	assert.Nil(err)
+	assert.Equal(name, label.Name)
+
+	database.Close()
+
+	database2, err := db.NewDatabase(ctx, tempFile.Name())
+	assert.Nil(err)
+
+	assert.Equal(name, database2.Labels[len(database2.Labels)-1].Name)
+	database2.Close()
 }
 
 func TestNewTodo(t *testing.T) {
@@ -152,6 +192,7 @@ func TestNewTodo(t *testing.T) {
 	assert := assert.New(t)
 
 	database := getDB(assert)
+	defer database.Close()
 
 	title := "do some work"
 	description := "here are some details of what the work is or where to find out more"
@@ -162,13 +203,34 @@ func TestNewTodo(t *testing.T) {
 	assert.Equal(description, todo.Description)
 
 	// confirm that the new todo was added to the end of the list for the open status
-	for _, s := range database.Statuses {
-		if s.Name == "open" {
-			assert.Equal(s.Todos[todo.Rank].Title, title)
+	assert.Equal(database.Statuses["open"].Todos[todo.Rank].Title, title)
+}
 
-			break
-		}
-	}
+func TestUpdateTodo(t *testing.T) {
+	t.Parallel()
+
+	assert := assert.New(t)
+
+	ctx := context.Background()
+
+	database := getDB(assert)
+	defer database.Close()
+
+	title := "review a proposal"
+	description := "it's about something important"
+	todo, err := database.NewTodo(ctx, title, description)
+	assert.Nil(err)
+
+	assert.Equal(title, todo.Title)
+	assert.Equal(description, todo.Description)
+
+	title = "review an important proposal"
+	description = "here's a link: https://example.com/something_important"
+	err = database.UpdateTodo(ctx, todo, title, description)
+	assert.Nil(err)
+
+	assert.Equal(title, todo.Title)
+	assert.Equal(description, todo.Description)
 }
 
 func TestAddTodoLabel(t *testing.T) {
@@ -177,6 +239,8 @@ func TestAddTodoLabel(t *testing.T) {
 	assert := assert.New(t)
 
 	database := getDB(assert)
+	defer database.Close()
+
 	todo := addDefaultTodo(assert, database)
 
 	label := database.Labels[0]
@@ -193,6 +257,8 @@ func TestAddTodoLabelTwice(t *testing.T) {
 	assert := assert.New(t)
 
 	database := getDB(assert)
+	defer database.Close()
+
 	todo := addDefaultTodo(assert, database)
 
 	label := database.Labels[0]
@@ -216,6 +282,8 @@ func TestRemoveTodoLabel(t *testing.T) {
 	assert := assert.New(t)
 
 	database := getDB(assert)
+	defer database.Close()
+
 	todo := addDefaultTodo(assert, database)
 
 	err := database.AddTodoLabel(context.Background(), todo, database.Labels[0])
@@ -241,6 +309,8 @@ func TestChangeStatus(t *testing.T) {
 	assert := assert.New(t)
 
 	database := getDB(assert)
+	defer database.Close()
+
 	todo1 := addTodo(assert, database, "todo 1", "")
 	todo2 := addTodo(assert, database, "todo 2", "")
 	todo3 := addTodo(assert, database, "todo 3", "")
@@ -273,6 +343,8 @@ func TestChangeStatusValidatesClosedListLimit(t *testing.T) {
 	assert := assert.New(t)
 
 	database := getDB(assert)
+	defer database.Close()
+
 	todos := []*db.Todo{}
 
 	for i := 0; i < 6; i++ {
@@ -297,6 +369,8 @@ func TestMoveUpTodo(t *testing.T) {
 	assert := assert.New(t)
 
 	database := getDB(assert)
+	defer database.Close()
+
 	todo1 := addTodo(assert, database, "todo 1", "")
 	todo2 := addTodo(assert, database, "todo 2", "")
 
@@ -319,6 +393,8 @@ func TestMoveDownTodo(t *testing.T) {
 	assert := assert.New(t)
 
 	database := getDB(assert)
+	defer database.Close()
+
 	todo1 := addTodo(assert, database, "todo 1", "")
 	todo2 := addTodo(assert, database, "todo 2", "")
 

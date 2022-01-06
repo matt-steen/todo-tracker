@@ -264,7 +264,7 @@ func (d *Database) loadTodoLabels(ctx context.Context) error {
 	return nil
 }
 
-// NewTodo creates a new todo with the given title and description; the todo is added
+// NewTodo creates a new Todo with the given title and description; the Todo is added
 // at the end of the open list.
 func (d *Database) NewTodo(ctx context.Context, title, description string) (*Todo, error) {
 	open := d.Statuses["open"]
@@ -301,6 +301,22 @@ func (d *Database) NewTodo(ctx context.Context, title, description string) (*Tod
 	return todo, nil
 }
 
+// UpdateTodo updates the Todo with the given title and description.
+func (d *Database) UpdateTodo(ctx context.Context, todo *Todo, title, description string) error {
+	_, err := d.conn.ExecContext(ctx,
+		`UPDATE todo SET title=$1, description=$2 WHERE id=$3`,
+		title, description, todo.id,
+	)
+	if err != nil {
+		return fmt.Errorf("error updating todo: %w", err)
+	}
+
+	todo.Title = title
+	todo.Description = description
+
+	return nil
+}
+
 // NewLabel creates a new label with the given name.
 func (d *Database) NewLabel(ctx context.Context, name string) (*Label, error) {
 	result, err := d.conn.ExecContext(ctx, `INSERT INTO label (name) VALUES ($1)`, name)
@@ -317,6 +333,18 @@ func (d *Database) NewLabel(ctx context.Context, name string) (*Label, error) {
 	d.Labels = append(d.Labels, label)
 
 	return label, nil
+}
+
+// UpdateLabel updates the label name.
+func (d *Database) UpdateLabel(ctx context.Context, label *Label, name string) error {
+	_, err := d.conn.ExecContext(ctx, `UPDATE label SET name=$1 WHERE id=$2`, name, label.id)
+	if err != nil {
+		return fmt.Errorf("error updating label: %w", err)
+	}
+
+	label.Name = name
+
+	return nil
 }
 
 // ChangeStatus moves a Todo from one status to another.
