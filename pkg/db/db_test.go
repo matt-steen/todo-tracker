@@ -85,6 +85,54 @@ func TestNewDatabaseIdempotent(t *testing.T) {
 	assert.Equal(9, len(database2.Labels))
 }
 
+func TestLoadComplexState(t *testing.T) {
+	t.Parallel()
+
+	assert := assert.New(t)
+
+	ctx := context.Background()
+
+	tempFile, err := ioutil.TempFile("/tmp", "test_new_database*")
+	assert.Nil(err)
+
+	database, err := db.NewDatabase(ctx, tempFile.Name())
+	assert.Nil(err)
+
+	todo1 := addTodo(assert, database, "todo 1", "")
+	todo2 := addTodo(assert, database, "todo 2", "")
+	todo3 := addTodo(assert, database, "todo 3", "")
+
+	newLabelName := "busywork"
+	label, err := database.NewLabel(ctx, newLabelName)
+	assert.Nil(err)
+
+	err = database.AddTodoLabel(ctx, todo1, label)
+	assert.Nil(err)
+
+	err = database.AddTodoLabel(ctx, todo1, database.Labels[0])
+	assert.Nil(err)
+
+	err = database.ChangeStatus(context.Background(), todo2, database.Statuses["open"], database.Statuses["closed"])
+	assert.Nil(err)
+
+	database.Close()
+
+	database2, err := db.NewDatabase(ctx, tempFile.Name())
+	assert.Nil(err)
+
+	assert.Equal(3, len(database2.Todos))
+	assert.Equal(2, len(database2.Statuses["open"].Todos))
+	assert.Equal(1, len(database2.Statuses["closed"].Todos))
+
+	assert.Equal(database2.Statuses["open"].Todos[0].Title, todo1.Title)
+	assert.Equal(database2.Statuses["open"].Todos[1].Title, todo3.Title)
+
+	assert.Equal(database2.Statuses["closed"].Todos[0].Title, todo2.Title)
+
+	assert.Equal(newLabelName, todo1.Labels[0].Name)
+	assert.Equal(database2.Labels[0].Name, todo1.Labels[1].Name)
+}
+
 func TestNewLabel(t *testing.T) {
 	t.Parallel()
 
@@ -286,5 +334,3 @@ func TestMoveDownTodo(t *testing.T) {
 	assert.Equal(1, todo1.Rank)
 	assert.Equal(0, todo2.Rank)
 }
-
-// TODO: setup something moderately complicated and then reload it to fully verify db init
