@@ -12,6 +12,8 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
+// MaxClosedTodos defines the size of the closed todo list. This is intended to constrict work to items on this list,
+// which encourages focus and prioritization.
 const MaxClosedTodos = 5
 
 //go:embed base.sql
@@ -299,6 +301,7 @@ func (d *Database) NewTodo(ctx context.Context, title, description string) (*Tod
 	return todo, nil
 }
 
+// NewLabel creates a new label with the given name.
 func (d *Database) NewLabel(ctx context.Context, name string) (*Label, error) {
 	result, err := d.conn.ExecContext(ctx, `INSERT INTO label (name) VALUES ($1)`, name)
 	if err != nil {
@@ -316,6 +319,7 @@ func (d *Database) NewLabel(ctx context.Context, name string) (*Label, error) {
 	return label, nil
 }
 
+// ChangeStatus moves a Todo from one status to another.
 func (d *Database) ChangeStatus(ctx context.Context, todo *Todo, oldStatus, newStatus *Status) error {
 	if newStatus.Name == "closed" && len(newStatus.Todos) >= MaxClosedTodos {
 		return ErrMaxClosedTodos
@@ -371,6 +375,9 @@ func (d *Database) ChangeStatus(ctx context.Context, todo *Todo, oldStatus, newS
 	return nil
 }
 
+// MoveUp moves a Todo one position up in the list, meaning it reduces the ranking by 1.
+// and increases the ranking of the previous Todo.
+// If the last Todo is passed, return ErrCantMoveFirstTodoUp.
 func (d *Database) MoveUp(ctx context.Context, todo *Todo) error {
 	if todo.Rank == 0 {
 		return ErrCantMoveFirstTodoUp
@@ -406,6 +413,9 @@ func (d *Database) MoveUp(ctx context.Context, todo *Todo) error {
 	return nil
 }
 
+// MoveDown moves a Todo one position down in the list, meaning it increases the ranking by 1
+// and reduces the ranking of the next Todo.
+// If the last Todo is passed, return ErrCantMoveLastTodoDown.
 func (d *Database) MoveDown(ctx context.Context, todo *Todo) error {
 	if todo.Rank == len(todo.Status.Todos)-1 {
 		return ErrCantMoveLastTodoDown
@@ -416,6 +426,7 @@ func (d *Database) MoveDown(ctx context.Context, todo *Todo) error {
 	return d.MoveUp(ctx, nextTodo)
 }
 
+// AddTodoLabel adds a Label to a Todo.
 func (d *Database) AddTodoLabel(ctx context.Context, todo *Todo, label *Label) error {
 	_, err := d.conn.ExecContext(ctx,
 		`INSERT INTO todo_label (todo_id, label_id) VALUES ($1, $2)`,
@@ -430,6 +441,7 @@ func (d *Database) AddTodoLabel(ctx context.Context, todo *Todo, label *Label) e
 	return nil
 }
 
+// AddTodoLabel removes a Label from a Todo.
 func (d *Database) RemoveTodoLabel(ctx context.Context, todo *Todo, label *Label) error {
 	_, err := d.conn.ExecContext(ctx,
 		`DELETE FROM todo_label WHERE todo_id = $1 AND label_id = $2`,
