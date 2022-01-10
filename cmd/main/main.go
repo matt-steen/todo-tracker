@@ -1,7 +1,10 @@
 package main
 
 import (
-	"github.com/rivo/tview"
+	"context"
+
+	"github.com/matt-steen/todo-tracker/pkg/controller"
+	"github.com/matt-steen/todo-tracker/pkg/db"
 )
 
 /*
@@ -36,24 +39,24 @@ view
 
 controller
 - middle layer to implement changes in model based on input from the view
-- how to conceptualize this?
 
 */
 
 func main() {
-	// TODO: how to have shortcuts that act on the current item rather than switching?
-	// TODO: organization: use multiple tabs
-	app := tview.NewApplication()
-	list := tview.NewList().
-		AddItem("List item 1", "Some explanatory text", 'a', nil).
-		AddItem("List item 2", "Some explanatory text", 'b', nil).
-		AddItem("List item 3", "Some explanatory text", 'c', nil).
-		AddItem("List item 4", "Some explanatory text", 'd', nil).
-		AddItem("Quit", "Press to exit", 'q', func() {
-			app.Stop()
-		})
+	ctx := context.Background()
 
-	if err := app.SetRoot(list, true).SetFocus(list).Run(); err != nil {
+	// TODO: handle default and alternate DB locations...
+	dbFilename := "/Users/msteen/code/todo-tracker/test.sqlite"
+
+	db, err := db.NewDatabase(ctx, dbFilename)
+	if err != nil {
 		panic(err)
 	}
+
+	controller, err := controller.NewController(db)
+	if err != nil {
+		panic(err)
+	}
+
+	controller.Go()
 }
