@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"fmt"
+
 	"github.com/gdamore/tcell/v2"
 	"github.com/matt-steen/todo-tracker/pkg/db"
 	"github.com/rivo/tview"
@@ -12,8 +14,18 @@ const (
 
 // Controller mediates between the model and the view.
 type Controller struct {
-	db  *db.Database
-	app *tview.Application
+	db             *db.Database
+	app            *tview.Application
+	grid           *tview.Grid
+	selectedTodo   *db.Todo
+	selectedStatus *db.Status
+	events         map[tcell.Key]KeyEvent
+}
+
+// KeyEvent defines an event associated with a keypress.
+type KeyEvent struct {
+	Description string
+	Action      func(*tcell.EventKey) *tcell.EventKey
 }
 
 // NewController creates a new Controller to run the app.
@@ -23,43 +35,90 @@ func NewController(db *db.Database) (*Controller, error) {
 		app: tview.NewApplication(),
 	}
 
+	initKeys()
+	c.initEvents()
+
 	return &c, nil
 }
 
 // Go starts the app.
 func (c *Controller) Go() {
-	grid := tview.NewGrid().SetBorders(true)
+	c.grid = tview.NewGrid().SetBorders(true)
 
-	text := c.getHeader("open")
-	table := c.getTable("open")
+	c.updateStatus("closed")
+}
 
-	grid.AddItem(text, 0, 0, 1, 1, 0, 0, false)
-	grid.AddItem(table, 1, 0, 1, 1, 0, 0, true)
+func (c *Controller) updateStatus(status string) {
+	text := c.getHeader(status)
+	table := c.getTable(status)
 
-	if err := c.app.SetRoot(grid, true).SetFocus(grid).Run(); err != nil {
+	c.grid.Clear()
+
+	c.grid.AddItem(text, 0, 0, 1, 1, 0, 0, false)
+	c.grid.AddItem(table, 1, 0, 1, 1, 0, 0, true)
+
+	if err := c.app.SetRoot(c.grid, true).SetFocus(c.grid).Run(); err != nil {
 		panic(err)
 	}
 }
 
-// TODO: is there a way to define the keyboard shortcuts for each status in one place?
-// reuse in the actual handling and to display.
 func (c *Controller) getHeader(status string) *tview.TextView {
-	text := tview.NewTextView()
+	text := tview.NewTextView().SetDynamicColors(true)
 	text.SetScrollable(false)
-	text.SetText("some basic info goes here...")
+
+	msg := fmt.Sprintf("[yellow]%s\n[white]testing 1 2 3", status)
+	text.SetText(msg)
 
 	return text
+}
+
+// when the row selection changes, update the selected Todo.
+func (c *Controller) setCurrentRow(row, col int) {
+	if len(c.selectedStatus.Todos) > row {
+		c.selectedTodo = c.selectedStatus.Todos[row]
+	}
+}
+
+func (c *Controller) keyboard(evt *tcell.EventKey) *tcell.EventKey {
+	key := AsKey(evt)
+	if k, ok := c.events[key]; ok {
+		return k.Action(evt)
+	}
+
+	return evt
 }
 
 func (c *Controller) getTable(status string) *tview.Table {
 	table := tview.NewTable().SetBorders(false)
 
-	for row, todo := range c.db.Statuses[status].Todos {
+	c.selectedStatus = c.db.Statuses[status]
+
+	row := 0
+	col := 0
+	table.SetCell(
+		row,
+		col,
+		tview.NewTableCell("title").SetExpansion(1).SetTextColor(tcell.ColorYellow).SetSelectable(false),
+	)
+	col++
+	table.SetCell(
+		row,
+		col,
+		tview.NewTableCell("description").SetExpansion(1).SetTextColor(tcell.ColorYellow).SetSelectable(false),
+	)
+	col++
+	table.SetCell(
+		row,
+		col,
+		tview.NewTableCell("labels").SetExpansion(1).SetTextColor(tcell.ColorYellow).SetSelectable(false),
+	)
+
+	for row, todo := range c.selectedStatus.Todos {
 		col := 0
-		table.SetCell(row, col, tview.NewTableCell(todo.Title).SetExpansion(1).SetReference(todo))
+		table.SetCell(row+1, col, tview.NewTableCell(todo.Title).SetExpansion(1).SetReference(todo))
 		col++
 
-		table.SetCell(row, col, tview.NewTableCell(todo.Description).SetExpansion(descTitleRatio))
+		table.SetCell(row+1, col, tview.NewTableCell(todo.Description).SetExpansion(descTitleRatio))
 		col++
 
 		labels := ""
@@ -71,11 +130,14 @@ func (c *Controller) getTable(status string) *tview.Table {
 			labels += l.Name
 		}
 
-		table.SetCell(row, col, tview.NewTableCell(labels).SetTextColor(tcell.ColorGreen).SetExpansion(1))
+		table.SetCell(row+1, col, tview.NewTableCell(labels).SetTextColor(tcell.ColorGreen).SetExpansion(1))
 	}
 
 	table.SetSelectable(true, false)
-	table.Select(0, 0)
+
+	if len(c.selectedStatus.Todos) > 0 {
+		table.Select(1, 0).SetFixed(1, 0)
+	}
 
 	table.SetDoneFunc(func(key tcell.Key) {
 		if key == tcell.KeyEscape {
@@ -83,25 +145,8 @@ func (c *Controller) getTable(status string) *tview.Table {
 		}
 	})
 
-	// progress on adding arbitrary key actions:
-	// I'm still not sure how to find the currently selected row in that context...
-	//
-	// from k9s:
-	//
-	// func (a *App) keyboard(evt *tcell.EventKey) *tcell.EventKey {
-	// 	if k, ok := a.HasAction(ui.AsKey(evt)); ok && !a.Content.IsTopDialog() {
-	// 		return k.Action(evt)
-	// 	}
-	//
-	// 	return evt
-	// }
-	//
-	// c.app.SetInputCapture(c.keyboard)
-
-	// TODO: I think this is where I define shortcut key behavior, etc
-	/* table.SetSelectedFunc(func(row int, column int) {
-
-	}) */
+	c.app.SetInputCapture(c.keyboard)
+	table.SetSelectionChangedFunc(c.setCurrentRow)
 
 	return table
 }
