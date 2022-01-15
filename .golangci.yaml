@@ -10,6 +10,9 @@ linters:
     # godox doesn't allow TODO in comments
     - godox
 
+    # dupl doesn't correctly detect duplicate lines
+    - dupl
+
     # exhaustivestruct requires that all constructed structs include all values, even if one value is the db id for a new object
     - exhaustivestruct
 
