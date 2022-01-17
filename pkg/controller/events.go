@@ -5,50 +5,83 @@ import "github.com/gdamore/tcell/v2"
 func (c *Controller) initEvents() {
 	c.events = map[tcell.Key]KeyEvent{}
 
-	// TODO: how to surface errors when we actually try to change things?
-	// ideally, no logic needs to be duplicated...
-	c.events[KeyO] = KeyEvent{
-		Description: "Open",
-		Action: func(key *tcell.EventKey) *tcell.EventKey {
-			c.updateStatus("open")
+	c.initShowEvents()
+	c.initMoveEvents()
+}
 
+func (c *Controller) getShowAction(status string) func(key *tcell.EventKey) *tcell.EventKey {
+	return func(key *tcell.EventKey) *tcell.EventKey {
+		c.updateStatus(status)
+
+		return key
+	}
+}
+
+// TODO: should I have constants for the statuses?
+func (c *Controller) initShowEvents() {
+	c.events[KeyShiftO] = KeyEvent{
+		Description: "Show Open",
+		Action:      c.getShowAction("open"),
+	}
+
+	c.events[KeyShiftC] = KeyEvent{
+		Description: "Show Closed",
+		Action:      c.getShowAction("closed"),
+	}
+
+	c.events[KeyShiftD] = KeyEvent{
+		Description: "Show Done",
+		Action:      c.getShowAction("done"),
+	}
+
+	c.events[KeyShiftH] = KeyEvent{
+		Description: "Show On Hold",
+		Action:      c.getShowAction("on_hold"),
+	}
+
+	c.events[KeyShiftA] = KeyEvent{
+		Description: "Show Abandoned",
+		Action:      c.getShowAction("abandoned"),
+	}
+}
+
+func (c *Controller) getMoveAction(status string) func(key *tcell.EventKey) *tcell.EventKey {
+	return func(key *tcell.EventKey) *tcell.EventKey {
+		err := c.db.ChangeStatus(c.ctx, c.selectedTodo, c.selectedStatus, c.db.Statuses[status])
+		if err != nil {
+			// TODO: how to display the error message to the user here?
 			return key
-		},
+		}
+
+		c.updateStatus(status)
+
+		return key
+	}
+}
+
+func (c *Controller) initMoveEvents() {
+	c.events[KeyO] = KeyEvent{
+		Description: "Move to Open",
+		Action:      c.getMoveAction("open"),
 	}
 
 	c.events[KeyC] = KeyEvent{
-		Description: "Closed",
-		Action: func(key *tcell.EventKey) *tcell.EventKey {
-			c.updateStatus("closed")
-
-			return key
-		},
+		Description: "Move to Closd",
+		Action:      c.getMoveAction("closed"),
 	}
 
 	c.events[KeyD] = KeyEvent{
-		Description: "Done",
-		Action: func(key *tcell.EventKey) *tcell.EventKey {
-			c.updateStatus("done")
-
-			return key
-		},
+		Description: "Move to Done",
+		Action:      c.getMoveAction("done"),
 	}
 
 	c.events[KeyH] = KeyEvent{
-		Description: "On Hold",
-		Action: func(key *tcell.EventKey) *tcell.EventKey {
-			c.updateStatus("on_hold")
-
-			return key
-		},
+		Description: "Move to On Hold",
+		Action:      c.getMoveAction("on_hold"),
 	}
 
 	c.events[KeyA] = KeyEvent{
-		Description: "Abandoned",
-		Action: func(key *tcell.EventKey) *tcell.EventKey {
-			c.updateStatus("abandoned")
-
-			return key
-		},
+		Description: "Move to Abandoned",
+		Action:      c.getMoveAction("abandoned"),
 	}
 }

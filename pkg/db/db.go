@@ -3,6 +3,8 @@ package db
 import (
 	"context"
 	"database/sql"
+
+	// embed must be imported to allow us to embed base.sql.
 	_ "embed"
 	"errors"
 	"fmt"
@@ -10,6 +12,7 @@ import (
 
 	// use the sqlite db driver.
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/rs/zerolog/log"
 )
 
 // MaxClosedTodos defines the size of the closed todo list. This is intended to constrict work to items on this list,
@@ -20,12 +23,17 @@ const MaxClosedTodos = 5
 var baseSQL string
 
 var (
+	// ErrMaxClosedTodos is returned from ChangeStatus when attempting to move a todo to the closed list when it is
+	// full (i.e., it already has MaxClosedTodos todos).
 	ErrMaxClosedTodos = fmt.Errorf(
 		"there are already %d closed todos. Complete or abandon something before starting something new",
 		MaxClosedTodos,
 	)
-	ErrInvalidTodoMove      = errors.New("cannot move a todo from one status to itself")
-	ErrCantMoveFirstTodoUp  = errors.New("cannot move up the first todo")
+	// ErrInvalidTodoMove is returned from ChangeStatus when the old and new statuses are the same.
+	ErrInvalidTodoMove = errors.New("cannot move a todo from one status to itself")
+	// ErrCantMoveFirstTodoUp is returned from MoveUp when the first todo is moved up.
+	ErrCantMoveFirstTodoUp = errors.New("cannot move up the first todo")
+	// ErrCantMoveLastTodoDown is returned from MoveDown when the last todo is moved down.
 	ErrCantMoveLastTodoDown = errors.New("cannot move down the last todo")
 )
 
@@ -357,6 +365,11 @@ func (d *Database) ChangeStatus(ctx context.Context, todo *Todo, oldStatus, newS
 		return ErrInvalidTodoMove
 	}
 
+	log.Info().Msgf(
+		"changing status for todo %s with rank %d in status %s to status %s",
+		todo.Title, todo.Rank, oldStatus.Name, newStatus.Name,
+	)
+
 	txn, err := d.conn.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("error opening transaction: %w", err)
@@ -392,8 +405,10 @@ func (d *Database) ChangeStatus(ctx context.Context, todo *Todo, oldStatus, newS
 	// don't change objects until after transaction is committed to avoid complexity of reversion if the commit fails
 	for _, todoToUpdate := range oldStatus.Todos[todo.Rank+1:] {
 		todoToUpdate.Rank--
+		log.Info().Msgf("decrementing rank for todo %s with rank %d", todoToUpdate.Title, todoToUpdate.Rank)
 	}
 
+	log.Info().Int("rank", todo.Rank).Msg("removing todo from oldStatus.Todos")
 	oldStatus.Todos = append(oldStatus.Todos[:todo.Rank], oldStatus.Todos[todo.Rank+1:]...)
 	newStatus.Todos = append(newStatus.Todos, todo)
 
@@ -469,7 +484,7 @@ func (d *Database) AddTodoLabel(ctx context.Context, todo *Todo, label *Label) e
 	return nil
 }
 
-// AddTodoLabel removes a Label from a Todo.
+// RemoveTodoLabel removes a Label from a Todo.
 func (d *Database) RemoveTodoLabel(ctx context.Context, todo *Todo, label *Label) error {
 	_, err := d.conn.ExecContext(ctx,
 		`DELETE FROM todo_label WHERE todo_id = $1 AND label_id = $2`,

@@ -17,3 +17,9 @@ linters:
     - exhaustivestruct
 
   fast: false
+
+linters-settings:
+  gomnd:
+    settings:
+      mnd:
+        ignored-numbers: 2,3
