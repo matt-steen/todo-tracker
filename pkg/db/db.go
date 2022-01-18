@@ -35,6 +35,8 @@ var (
 	ErrCantMoveFirstTodoUp = errors.New("cannot move up the first todo")
 	// ErrCantMoveLastTodoDown is returned from MoveDown when the last todo is moved down.
 	ErrCantMoveLastTodoDown = errors.New("cannot move down the last todo")
+	// ErrNilTodo is returned when a modification is attempted on a nil Todo.
+	ErrNilTodo = errors.New("no Todo is currently selected")
 )
 
 // Database manages the db connection and the state of the system.
@@ -184,7 +186,9 @@ func (d *Database) loadStatuses(ctx context.Context) error {
 }
 
 func (d *Database) loadTodos(ctx context.Context) error {
-	todoSQL := `SELECT id, title, description, status_id, created_datetime, updated_datetime
+	log.Debug().Msgf("loading todos from db...")
+
+	todoSQL := `SELECT id, title, description, status_id, rank, created_datetime, updated_datetime
 				FROM todo
 				ORDER BY status_id, rank`
 
@@ -200,7 +204,15 @@ func (d *Database) loadTodos(ctx context.Context) error {
 
 		var statusID int
 
-		err = rows.Scan(&todo.id, &todo.Title, &todo.Description, &statusID, &todo.CreatedDatetime, &todo.UpdatedDatetime)
+		err = rows.Scan(
+			&todo.id,
+			&todo.Title,
+			&todo.Description,
+			&statusID,
+			&todo.Rank,
+			&todo.CreatedDatetime,
+			&todo.UpdatedDatetime,
+		)
 		if err != nil {
 			return fmt.Errorf("error scanning todo: %w", err)
 		}
@@ -219,6 +231,12 @@ func (d *Database) loadTodos(ctx context.Context) error {
 
 	if err = rows.Err(); err != nil {
 		return fmt.Errorf("error scanning todos: %w", err)
+	}
+
+	for key, status := range d.Statuses {
+		for _, todo := range status.Todos {
+			log.Debug().Str("status", key).Str("todo", todo.Title).Int("rank", todo.Rank).Msgf("")
+		}
 	}
 
 	return nil
@@ -311,6 +329,10 @@ func (d *Database) NewTodo(ctx context.Context, title, description string) (*Tod
 
 // UpdateTodo updates the Todo with the given title and description.
 func (d *Database) UpdateTodo(ctx context.Context, todo *Todo, title, description string) error {
+	if todo == nil {
+		return ErrNilTodo
+	}
+
 	_, err := d.conn.ExecContext(ctx,
 		`UPDATE todo SET title=$1, description=$2 WHERE id=$3`,
 		title, description, todo.id,
@@ -355,8 +377,11 @@ func (d *Database) UpdateLabel(ctx context.Context, label *Label, name string) e
 	return nil
 }
 
-// ChangeStatus moves a Todo from one status to another.
-func (d *Database) ChangeStatus(ctx context.Context, todo *Todo, oldStatus, newStatus *Status) error {
+func validateStatusChange(todo *Todo, oldStatus, newStatus *Status) error {
+	if todo == nil {
+		return ErrNilTodo
+	}
+
 	if newStatus.Name == "closed" && len(newStatus.Todos) >= MaxClosedTodos {
 		return ErrMaxClosedTodos
 	}
@@ -365,11 +390,10 @@ func (d *Database) ChangeStatus(ctx context.Context, todo *Todo, oldStatus, newS
 		return ErrInvalidTodoMove
 	}
 
-	log.Info().Msgf(
-		"changing status for todo %s with rank %d in status %s to status %s",
-		todo.Title, todo.Rank, oldStatus.Name, newStatus.Name,
-	)
+	return nil
+}
 
+func (d *Database) persistStatusChange(ctx context.Context, todo *Todo, oldStatus, newStatus *Status) error {
 	txn, err := d.conn.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("error opening transaction: %w", err)
@@ -387,6 +411,8 @@ func (d *Database) ChangeStatus(ctx context.Context, todo *Todo, oldStatus, newS
 	}
 
 	for _, todoToUpdate := range oldStatus.Todos[todo.Rank+1:] {
+		log.Debug().Msgf("decrementing rank IN DB for todo %s", todoToUpdate.Title)
+
 		_, err = txn.ExecContext(
 			ctx,
 			`UPDATE todo SET rank=rank - 1 WHERE id=$1`,
@@ -402,18 +428,57 @@ func (d *Database) ChangeStatus(ctx context.Context, todo *Todo, oldStatus, newS
 		return fmt.Errorf("error committing changes: %w", err)
 	}
 
+	return nil
+}
+
+func (d *Database) localStatusChange(todo *Todo, oldStatus, newStatus *Status) {
 	// don't change objects until after transaction is committed to avoid complexity of reversion if the commit fails
 	for _, todoToUpdate := range oldStatus.Todos[todo.Rank+1:] {
 		todoToUpdate.Rank--
-		log.Info().Msgf("decrementing rank for todo %s with rank %d", todoToUpdate.Title, todoToUpdate.Rank)
+		log.Debug().Msgf("decremented rank for todo %s with rank %d", todoToUpdate.Title, todoToUpdate.Rank)
+
+		if todoToUpdate.Rank < 0 {
+			log.Warn().Msgf("RANK < 0! **************************")
+		}
 	}
 
-	log.Info().Int("rank", todo.Rank).Msg("removing todo from oldStatus.Todos")
+	log.Debug().Int("rank", todo.Rank).Int("len", len(oldStatus.Todos)).Msg("removing todo from oldStatus.Todos")
 	oldStatus.Todos = append(oldStatus.Todos[:todo.Rank], oldStatus.Todos[todo.Rank+1:]...)
+	log.Debug().Int("rank", todo.Rank).Int("len", len(oldStatus.Todos)).Msg("removed todo from oldStatus.Todos")
+
+	log.Debug().Int("rank", todo.Rank).Int("len", len(newStatus.Todos)).Msg("adding todo to newStatus.Todos")
 	newStatus.Todos = append(newStatus.Todos, todo)
+	log.Debug().Int("rank", todo.Rank).Int("len", len(newStatus.Todos)).Msg("added todo to newStatus.Todos")
 
 	todo.Status = newStatus
 	todo.Rank = len(newStatus.Todos) - 1
+	log.Debug().Msgf("setting rank on moved todo to %d", todo.Rank)
+
+	if todo.Rank < 0 {
+		log.Warn().Msgf("RANK < 0! **************************")
+	}
+}
+
+// ChangeStatus moves a Todo from one status to another.
+func (d *Database) ChangeStatus(ctx context.Context, todo *Todo, oldStatus, newStatus *Status) error {
+	if err := validateStatusChange(todo, oldStatus, newStatus); err != nil {
+		return err
+	}
+
+	log.Info().Msgf(
+		"changing status for todo %s with rank %d in status %s to status %s",
+		todo.Title, todo.Rank, oldStatus.Name, newStatus.Name,
+	)
+
+	for _, todoToUpdate := range oldStatus.Todos[todo.Rank+1:] {
+		log.Debug().Msgf("current rank for todo %s: %d", todoToUpdate.Title, todoToUpdate.Rank)
+	}
+
+	if err := d.persistStatusChange(ctx, todo, oldStatus, newStatus); err != nil {
+		return err
+	}
+
+	d.localStatusChange(todo, oldStatus, newStatus)
 
 	return nil
 }
@@ -422,6 +487,10 @@ func (d *Database) ChangeStatus(ctx context.Context, todo *Todo, oldStatus, newS
 // and increases the ranking of the previous Todo.
 // If the last Todo is passed, return ErrCantMoveFirstTodoUp.
 func (d *Database) MoveUp(ctx context.Context, todo *Todo) error {
+	if todo == nil {
+		return ErrNilTodo
+	}
+
 	if todo.Rank == 0 {
 		return ErrCantMoveFirstTodoUp
 	}
@@ -460,6 +529,10 @@ func (d *Database) MoveUp(ctx context.Context, todo *Todo) error {
 // and reduces the ranking of the next Todo.
 // If the last Todo is passed, return ErrCantMoveLastTodoDown.
 func (d *Database) MoveDown(ctx context.Context, todo *Todo) error {
+	if todo == nil {
+		return ErrNilTodo
+	}
+
 	if todo.Rank == len(todo.Status.Todos)-1 {
 		return ErrCantMoveLastTodoDown
 	}

@@ -134,7 +134,11 @@ func TestLoadComplexState(t *testing.T) {
 	assert.Equal(database2.Statuses["open"].Todos[0].Title, todo1.Title)
 	assert.Equal(database2.Statuses["open"].Todos[1].Title, todo3.Title)
 
+	assert.Equal(0, database2.Statuses["open"].Todos[0].Rank)
+	assert.Equal(1, database2.Statuses["open"].Todos[1].Rank)
+
 	assert.Equal(database2.Statuses["closed"].Todos[0].Title, todo2.Title)
+	assert.Equal(0, database2.Statuses["closed"].Todos[0].Rank)
 
 	assert.Equal(newLabelName, todo1.Labels[0].Name)
 	assert.Equal(database2.Labels[0].Name, todo1.Labels[1].Name)
