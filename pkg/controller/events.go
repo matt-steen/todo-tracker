@@ -1,6 +1,9 @@
 package controller
 
-import "github.com/gdamore/tcell/v2"
+import (
+	"github.com/gdamore/tcell/v2"
+	"github.com/rs/zerolog/log"
+)
 
 func (c *Controller) initEvents() {
 	c.events = map[tcell.Key]KeyEvent{}
@@ -11,7 +14,7 @@ func (c *Controller) initEvents() {
 
 func (c *Controller) getShowAction(status string) func(key *tcell.EventKey) *tcell.EventKey {
 	return func(key *tcell.EventKey) *tcell.EventKey {
-		c.updateStatus(status)
+		c.showStatus(status)
 
 		return key
 	}
@@ -50,10 +53,17 @@ func (c *Controller) getMoveAction(status string) func(key *tcell.EventKey) *tce
 		err := c.db.ChangeStatus(c.ctx, c.selectedTodo, c.selectedStatus, c.db.Statuses[status])
 		if err != nil {
 			// TODO: how to display the error message to the user here?
+			log.Warn().Err(err).Msgf(
+				"error while trying to change status from %s to %s for todo %s.",
+				c.selectedStatus.Name,
+				status,
+				c.selectedTodo.Title,
+			)
+
 			return key
 		}
 
-		c.updateStatus(status)
+		c.showStatus(status)
 
 		return key
 	}
