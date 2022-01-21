@@ -2,6 +2,7 @@ package controller
 
 import (
 	"github.com/gdamore/tcell/v2"
+	"github.com/matt-steen/todo-tracker/pkg/db"
 	"github.com/rs/zerolog/log"
 )
 
@@ -20,31 +21,30 @@ func (c *Controller) getShowAction(status string) func(key *tcell.EventKey) *tce
 	}
 }
 
-// TODO: should I have constants for the statuses?
 func (c *Controller) initShowEvents() {
 	c.events[KeyShiftO] = KeyEvent{
 		Description: "Show Open",
-		Action:      c.getShowAction("open"),
+		Action:      c.getShowAction(db.StatusOpen),
 	}
 
 	c.events[KeyShiftC] = KeyEvent{
 		Description: "Show Closed",
-		Action:      c.getShowAction("closed"),
+		Action:      c.getShowAction(db.StatusClosed),
 	}
 
 	c.events[KeyShiftD] = KeyEvent{
 		Description: "Show Done",
-		Action:      c.getShowAction("done"),
+		Action:      c.getShowAction(db.StatusDone),
 	}
 
 	c.events[KeyShiftH] = KeyEvent{
 		Description: "Show On Hold",
-		Action:      c.getShowAction("on_hold"),
+		Action:      c.getShowAction(db.StatusOnHold),
 	}
 
 	c.events[KeyShiftA] = KeyEvent{
 		Description: "Show Abandoned",
-		Action:      c.getShowAction("abandoned"),
+		Action:      c.getShowAction(db.StatusAbandoned),
 	}
 }
 
@@ -72,26 +72,26 @@ func (c *Controller) getMoveAction(status string) func(key *tcell.EventKey) *tce
 func (c *Controller) initMoveEvents() {
 	c.events[KeyO] = KeyEvent{
 		Description: "Move to Open",
-		Action:      c.getMoveAction("open"),
+		Action:      c.getMoveAction(db.StatusOpen),
 	}
 
 	c.events[KeyC] = KeyEvent{
 		Description: "Move to Closd",
-		Action:      c.getMoveAction("closed"),
+		Action:      c.getMoveAction(db.StatusClosed),
 	}
 
 	c.events[KeyD] = KeyEvent{
 		Description: "Move to Done",
-		Action:      c.getMoveAction("done"),
+		Action:      c.getMoveAction(db.StatusDone),
 	}
 
 	c.events[KeyH] = KeyEvent{
 		Description: "Move to On Hold",
-		Action:      c.getMoveAction("on_hold"),
+		Action:      c.getMoveAction(db.StatusOnHold),
 	}
 
 	c.events[KeyA] = KeyEvent{
 		Description: "Move to Abandoned",
-		Action:      c.getMoveAction("abandoned"),
+		Action:      c.getMoveAction(db.StatusAbandoned),
 	}
 }

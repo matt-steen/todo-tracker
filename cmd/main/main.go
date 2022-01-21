@@ -21,7 +21,7 @@ model
 		- optional description
 		- status (FK)
 		- created/updated metadata
-	- status (closed, open, on hold, done)
+	- status (closed, open, on hold, done, abandoned)
 	- label
 		- possible labels (onboarding, high priority/soon, technical, platform, human interaction)
 	- todo_labels

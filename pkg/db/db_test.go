@@ -117,7 +117,7 @@ func TestLoadComplexState(t *testing.T) {
 	err = database.AddTodoLabel(ctx, todo1, database.Labels[0])
 	assert.Nil(err)
 
-	err = database.ChangeStatus(context.Background(), todo2, database.Statuses["open"], database.Statuses["closed"])
+	err = database.ChangeStatus(context.Background(), todo2, database.Statuses[db.StatusOpen], database.Statuses[db.StatusClosed])
 	assert.Nil(err)
 
 	database.Close()
@@ -128,17 +128,17 @@ func TestLoadComplexState(t *testing.T) {
 	defer database2.Close()
 
 	assert.Equal(3, len(database2.Todos))
-	assert.Equal(2, len(database2.Statuses["open"].Todos))
-	assert.Equal(1, len(database2.Statuses["closed"].Todos))
+	assert.Equal(2, len(database2.Statuses[db.StatusOpen].Todos))
+	assert.Equal(1, len(database2.Statuses[db.StatusClosed].Todos))
 
-	assert.Equal(database2.Statuses["open"].Todos[0].Title, todo1.Title)
-	assert.Equal(database2.Statuses["open"].Todos[1].Title, todo3.Title)
+	assert.Equal(database2.Statuses[db.StatusOpen].Todos[0].Title, todo1.Title)
+	assert.Equal(database2.Statuses[db.StatusOpen].Todos[1].Title, todo3.Title)
 
-	assert.Equal(0, database2.Statuses["open"].Todos[0].Rank)
-	assert.Equal(1, database2.Statuses["open"].Todos[1].Rank)
+	assert.Equal(0, database2.Statuses[db.StatusOpen].Todos[0].Rank)
+	assert.Equal(1, database2.Statuses[db.StatusOpen].Todos[1].Rank)
 
-	assert.Equal(database2.Statuses["closed"].Todos[0].Title, todo2.Title)
-	assert.Equal(0, database2.Statuses["closed"].Todos[0].Rank)
+	assert.Equal(database2.Statuses[db.StatusClosed].Todos[0].Title, todo2.Title)
+	assert.Equal(0, database2.Statuses[db.StatusClosed].Todos[0].Rank)
 
 	assert.Equal(newLabelName, todo1.Labels[0].Name)
 	assert.Equal(database2.Labels[0].Name, todo1.Labels[1].Name)
@@ -207,7 +207,7 @@ func TestNewTodo(t *testing.T) {
 	assert.Equal(description, todo.Description)
 
 	// confirm that the new todo was added to the end of the list for the open status
-	assert.Equal(database.Statuses["open"].Todos[todo.Rank].Title, title)
+	assert.Equal(database.Statuses[db.StatusOpen].Todos[todo.Rank].Title, title)
 }
 
 func TestUpdateTodo(t *testing.T) {
@@ -325,20 +325,20 @@ func TestChangeStatus(t *testing.T) {
 	assert.Equal(2, todo3.Rank)
 	assert.Equal(3, todo4.Rank)
 
-	assert.Equal(todo2.Status, database.Statuses["open"])
+	assert.Equal(todo2.Status, database.Statuses[db.StatusOpen])
 
-	err := database.ChangeStatus(context.Background(), todo2, database.Statuses["open"], database.Statuses["closed"])
+	err := database.ChangeStatus(context.Background(), todo2, database.Statuses[db.StatusOpen], database.Statuses[db.StatusClosed])
 	assert.Nil(err)
 
 	assert.Equal(0, todo2.Rank)
-	assert.Equal(1, len(database.Statuses["closed"].Todos))
-	assert.Equal(database.Statuses["closed"], todo2.Status)
-	assert.Equal("todo 2", database.Statuses["closed"].Todos[0].Title)
+	assert.Equal(1, len(database.Statuses[db.StatusClosed].Todos))
+	assert.Equal(database.Statuses[db.StatusClosed], todo2.Status)
+	assert.Equal("todo 2", database.Statuses[db.StatusClosed].Todos[0].Title)
 
 	assert.Equal(0, todo1.Rank)
 	assert.Equal(1, todo3.Rank)
 	assert.Equal(2, todo4.Rank)
-	assert.Equal(3, len(database.Statuses["open"].Todos))
+	assert.Equal(3, len(database.Statuses[db.StatusOpen].Todos))
 }
 
 func TestChangeStatusValidatesClosedListLimit(t *testing.T) {
@@ -357,7 +357,7 @@ func TestChangeStatusValidatesClosedListLimit(t *testing.T) {
 	}
 
 	for i, todo := range todos {
-		err := database.ChangeStatus(context.Background(), todo, database.Statuses["open"], database.Statuses["closed"])
+		err := database.ChangeStatus(context.Background(), todo, database.Statuses[db.StatusOpen], database.Statuses[db.StatusClosed])
 
 		if i < 5 {
 			assert.Nil(err)

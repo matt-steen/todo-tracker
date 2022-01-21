@@ -293,7 +293,7 @@ func (d *Database) loadTodoLabels(ctx context.Context) error {
 // NewTodo creates a new Todo with the given title and description; the Todo is added
 // at the end of the open list.
 func (d *Database) NewTodo(ctx context.Context, title, description string) (*Todo, error) {
-	open := d.Statuses["open"]
+	open := d.Statuses[StatusOpen]
 
 	rank := len(open.Todos)
 	now := time.Now()
@@ -382,7 +382,7 @@ func validateStatusChange(todo *Todo, oldStatus, newStatus *Status) error {
 		return ErrNilTodo
 	}
 
-	if newStatus.Name == "closed" && len(newStatus.Todos) >= MaxClosedTodos {
+	if newStatus.Name == StatusClosed && len(newStatus.Todos) >= MaxClosedTodos {
 		return ErrMaxClosedTodos
 	}
 

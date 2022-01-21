@@ -71,7 +71,7 @@ func (c *Controller) initSignals() {
 
 // Go starts the app.
 func (c *Controller) Go() {
-	c.selectedStatus = c.db.Statuses["closed"]
+	c.selectedStatus = c.db.Statuses[db.StatusClosed]
 
 	c.pages = c.initPages()
 
@@ -93,14 +93,12 @@ func pageName(status string) string {
 func (c *Controller) initPages() *tview.Pages {
 	pages := tview.NewPages()
 
-	// TODO: why/how have I regressed to showing the same table for all statuses?
-	// time for debug logging!
 	for status := range c.db.Statuses {
 		log.Debug().Msgf("adding page for status %s", status)
 		pages.AddPage(pageName(status),
 			c.getGrid(status),
 			true,
-			status == "closed")
+			status == db.StatusClosed)
 	}
 
 	return pages
