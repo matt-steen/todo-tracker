@@ -117,7 +117,7 @@ func TestLoadComplexState(t *testing.T) {
 	err = database.AddTodoLabel(ctx, todo1, database.Labels[0])
 	assert.Nil(err)
 
-	err = database.ChangeStatus(context.Background(), todo2, database.Statuses[db.StatusOpen], database.Statuses[db.StatusClosed])
+	err = database.ChangeStatus(ctx, todo2, database.Statuses[db.StatusOpen], database.Statuses[db.StatusClosed])
 	assert.Nil(err)
 
 	database.Close()
@@ -327,7 +327,12 @@ func TestChangeStatus(t *testing.T) {
 
 	assert.Equal(todo2.Status, database.Statuses[db.StatusOpen])
 
-	err := database.ChangeStatus(context.Background(), todo2, database.Statuses[db.StatusOpen], database.Statuses[db.StatusClosed])
+	err := database.ChangeStatus(
+		context.Background(),
+		todo2,
+		database.Statuses[db.StatusOpen],
+		database.Statuses[db.StatusClosed],
+	)
 	assert.Nil(err)
 
 	assert.Equal(0, todo2.Rank)
@@ -357,7 +362,12 @@ func TestChangeStatusValidatesClosedListLimit(t *testing.T) {
 	}
 
 	for i, todo := range todos {
-		err := database.ChangeStatus(context.Background(), todo, database.Statuses[db.StatusOpen], database.Statuses[db.StatusClosed])
+		err := database.ChangeStatus(
+			context.Background(),
+			todo,
+			database.Statuses[db.StatusOpen],
+			database.Statuses[db.StatusClosed],
+		)
 
 		if i < 5 {
 			assert.Nil(err)
