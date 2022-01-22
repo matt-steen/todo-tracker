@@ -49,12 +49,12 @@ controller
 func main() {
 	ctx := context.Background()
 
-	// TODO: handle default and alternate DB locations
+	// TODO (low): handle default and alternate DB locations
 	dbFilename := "/Users/msteen/code/todo-tracker/test.sqlite"
-	// TODO: handle default and alternate log locations
+	// TODO (low): handle default and alternate log locations
 	logFilename := "/Users/msteen/code/todo-tracker/debug.log"
 
-	// TODO: set default log level to info with the option to set it to debug with a flag?
+	// TODO (low): set default log level to info with the option to set it to debug with a flag?
 
 	filePerms := 0o666
 

@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"os"
+
 	"github.com/gdamore/tcell/v2"
 	"github.com/matt-steen/todo-tracker/pkg/db"
 	"github.com/rs/zerolog/log"
@@ -8,9 +10,34 @@ import (
 
 func (c *Controller) initEvents() {
 	c.events = map[tcell.Key]KeyEvent{}
+	c.todoEditEvents = map[tcell.Key]KeyEvent{}
 
-	c.initShowEvents()
-	c.initMoveEvents()
+	c.initShowEvents(c.events)
+	c.initShowEvents(c.todoEditEvents)
+
+	c.initMoveEvents(c.todoEditEvents)
+
+	c.initExitEvent(c.events)
+	c.initExitEvent(c.todoEditEvents)
+}
+
+func (c *Controller) getExitAction() func(key *tcell.EventKey) *tcell.EventKey {
+	return func(key *tcell.EventKey) *tcell.EventKey {
+		c.app.Stop()
+
+		log.Info().Msg("terminating application")
+
+		os.Exit(0)
+
+		return key
+	}
+}
+
+func (c *Controller) initExitEvent(events map[tcell.Key]KeyEvent) {
+	events[KeyQ] = KeyEvent{
+		Description: "Exit",
+		Action:      c.getExitAction(),
+	}
 }
 
 func (c *Controller) getShowAction(status string) func(key *tcell.EventKey) *tcell.EventKey {
@@ -21,28 +48,28 @@ func (c *Controller) getShowAction(status string) func(key *tcell.EventKey) *tce
 	}
 }
 
-func (c *Controller) initShowEvents() {
-	c.events[KeyShiftO] = KeyEvent{
+func (c *Controller) initShowEvents(events map[tcell.Key]KeyEvent) {
+	events[KeyShiftO] = KeyEvent{
 		Description: "Show Open",
 		Action:      c.getShowAction(db.StatusOpen),
 	}
 
-	c.events[KeyShiftC] = KeyEvent{
+	events[KeyShiftC] = KeyEvent{
 		Description: "Show Closed",
 		Action:      c.getShowAction(db.StatusClosed),
 	}
 
-	c.events[KeyShiftD] = KeyEvent{
+	events[KeyShiftD] = KeyEvent{
 		Description: "Show Done",
 		Action:      c.getShowAction(db.StatusDone),
 	}
 
-	c.events[KeyShiftH] = KeyEvent{
+	events[KeyShiftH] = KeyEvent{
 		Description: "Show On Hold",
 		Action:      c.getShowAction(db.StatusOnHold),
 	}
 
-	c.events[KeyShiftA] = KeyEvent{
+	events[KeyShiftA] = KeyEvent{
 		Description: "Show Abandoned",
 		Action:      c.getShowAction(db.StatusAbandoned),
 	}
@@ -52,12 +79,17 @@ func (c *Controller) getMoveAction(status string) func(key *tcell.EventKey) *tce
 	return func(key *tcell.EventKey) *tcell.EventKey {
 		err := c.db.ChangeStatus(c.ctx, c.selectedTodo, c.selectedStatus, c.db.Statuses[status])
 		if err != nil {
-			// TODO: how to display the error message to the user here?
+			// TODO (mvp): how to display the error message to the user here?
+			title := "?"
+			if c.selectedTodo != nil {
+				title = c.selectedTodo.Title
+			}
+
 			log.Warn().Err(err).Msgf(
 				"error while trying to change status from %s to %s for todo %s.",
 				c.selectedStatus.Name,
 				status,
-				c.selectedTodo.Title,
+				title,
 			)
 
 			return key
@@ -69,28 +101,28 @@ func (c *Controller) getMoveAction(status string) func(key *tcell.EventKey) *tce
 	}
 }
 
-func (c *Controller) initMoveEvents() {
-	c.events[KeyO] = KeyEvent{
+func (c *Controller) initMoveEvents(events map[tcell.Key]KeyEvent) {
+	events[KeyO] = KeyEvent{
 		Description: "Move to Open",
 		Action:      c.getMoveAction(db.StatusOpen),
 	}
 
-	c.events[KeyC] = KeyEvent{
+	events[KeyC] = KeyEvent{
 		Description: "Move to Closd",
 		Action:      c.getMoveAction(db.StatusClosed),
 	}
 
-	c.events[KeyD] = KeyEvent{
+	events[KeyD] = KeyEvent{
 		Description: "Move to Done",
 		Action:      c.getMoveAction(db.StatusDone),
 	}
 
-	c.events[KeyH] = KeyEvent{
+	events[KeyH] = KeyEvent{
 		Description: "Move to On Hold",
 		Action:      c.getMoveAction(db.StatusOnHold),
 	}
 
-	c.events[KeyA] = KeyEvent{
+	events[KeyA] = KeyEvent{
 		Description: "Move to Abandoned",
 		Action:      c.getMoveAction(db.StatusAbandoned),
 	}

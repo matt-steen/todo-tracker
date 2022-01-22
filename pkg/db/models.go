@@ -20,8 +20,9 @@ type Todo struct {
 	// Rank is maintained within each status. It starts at 0 and increments by 1.
 	// When a Todo is moved to a different status, it is appended to the list, so it has the
 	// highest rank in that list.
-	Rank            int
-	Status          *Status
+	Rank   int
+	Status *Status
+	// TODO (medium): populate timestamps!
 	CreatedDatetime *time.Time
 	UpdatedDatetime *time.Time
 }

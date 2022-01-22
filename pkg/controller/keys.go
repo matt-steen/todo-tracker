@@ -10,6 +10,7 @@ import "github.com/gdamore/tcell/v2"
 func initKeys() {
 	tcell.KeyNames[KeyHelp] = "?"
 	tcell.KeyNames[KeySlash] = "/"
+	tcell.KeyNames[KeyColon] = ":"
 	tcell.KeyNames[KeySpace] = "space"
 
 	initNumbKeys()

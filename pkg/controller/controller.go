@@ -17,6 +17,13 @@ const (
 	descTitleRatio = 2
 )
 
+// TODO (mvp): create a new todo in the UI
+// TODO (mvp): update todo fields
+// TODO (mvp): add a label
+// TODO (mvp): remove a label
+// TODO (mvp): move up/down
+// TODO (medium): view recently done tasks (needs more thought)
+
 // Controller mediates between the model and the view.
 type Controller struct {
 	ctx            context.Context
@@ -27,7 +34,10 @@ type Controller struct {
 	statusContents map[string]*StatusContent
 	selectedTodo   *db.Todo
 	selectedStatus *db.Status
-	events         map[tcell.Key]KeyEvent
+	// events accessible from any status page
+	events map[tcell.Key]KeyEvent
+	// events accessible only on the todo edit page
+	todoEditEvents map[tcell.Key]KeyEvent
 }
 
 // KeyEvent defines an event associated with a keypress.
@@ -94,7 +104,6 @@ func (c *Controller) initPages() *tview.Pages {
 	pages := tview.NewPages()
 
 	for status := range c.db.Statuses {
-		log.Debug().Msgf("adding page for status %s", status)
 		pages.AddPage(pageName(status),
 			c.getGrid(status),
 			true,
@@ -107,7 +116,6 @@ func (c *Controller) initPages() *tview.Pages {
 func (c *Controller) getGrid(status string) *tview.Grid {
 	header := c.getHeader(status)
 	c.tables[status] = c.getTable(status)
-	log.Debug().Msgf("setting c.tables[%s] = %p", status, c.tables[status])
 
 	grid := tview.NewGrid().SetBorders(true)
 
@@ -124,7 +132,7 @@ func (c *Controller) getHeader(status string) *tview.Table {
 	table.SetCell(row, 0, tview.NewTableCell(fmt.Sprintf("[yellow]%s", status)))
 	row++
 
-	// TODO: control keyboard shortcut ordering in header!
+	// TODO (medium): control keyboard shortcut ordering in header!
 	// what order do we want, and how should that information be made available here?
 	for key, event := range c.events {
 		text := fmt.Sprintf("[orange]<%s>[white] %s", tcell.KeyNames[key], event.Description)
@@ -171,23 +179,17 @@ func (c *Controller) getTable(status string) *tview.Table {
 
 	table.SetSelectable(true, false)
 
+	table.SetSelectionChangedFunc(c.setCurrentRow)
+
 	if c.selectedStatus != nil && len(c.selectedStatus.Todos) > 0 {
 		table.Select(1, 0).SetFixed(1, 0)
 	}
 
-	table.SetDoneFunc(func(key tcell.Key) {
-		if key == tcell.KeyEscape {
-			c.app.Stop()
-
-			log.Info().Msg("terminating application")
-
-			os.Exit(0)
-		}
-	})
-
-	table.SetSelectionChangedFunc(c.setCurrentRow)
-
-	// TODO: hit enter to edit or move the todo; change generally available events
+	// TODO (planning): figure out shortcuts and workflow
+	// should I use vim-style commands (e.g. :q to quit, :mo to move to open, etc?
+	// hit enter to edit or move the todo?
+	// something else?
+	// there are LOTS of options here...
 	/* table.SetSelectedFunc(func (row, col int) {
 
 	})*/
@@ -201,11 +203,20 @@ func (c *Controller) showStatus(status string) {
 	c.pages.SwitchToPage(pageName(status))
 
 	row, _ := c.tables[status].GetSelection()
-	if len(c.selectedStatus.Todos) > row-1 {
+	st := "nil"
+
+	if len(c.selectedStatus.Todos) > row-1 && row-1 >= 0 {
 		c.selectedTodo = c.selectedStatus.Todos[row-1]
+		st = c.selectedTodo.Title
 	} else {
 		c.selectedTodo = nil
 	}
+
+	log.Debug().
+		Str("selectedStatus", c.selectedStatus.Name).
+		Int("row", row).
+		Int("len", len(c.selectedStatus.Todos)).
+		Msgf("setting selectedTodo to '%s'", st)
 }
 
 // GetCell returns the cell at the given position or nil if no cell.
@@ -232,7 +243,7 @@ func (s *StatusContent) GetCell(row, col int) *tview.TableCell {
 	case 1:
 		return tview.NewTableCell(todo.Description).SetExpansion(descTitleRatio)
 	case 2:
-		// TODO: color-code labels in table (ideally by label id)
+		// TODO (medium): color-code labels in table (ideally by label id)
 		labels := ""
 		for _, l := range todo.Labels {
 			if len(labels) > 0 {
