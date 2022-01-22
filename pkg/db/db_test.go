@@ -200,7 +200,8 @@ func TestNewTodo(t *testing.T) {
 
 	title := "do some work"
 	description := "here are some details of what the work is or where to find out more"
-	todo, err := database.NewTodo(context.Background(), title, description)
+	ctx := context.Background()
+	todo, err := database.NewTodo(ctx, title, description)
 	assert.Nil(err)
 
 	assert.Equal(title, todo.Title)
@@ -208,6 +209,10 @@ func TestNewTodo(t *testing.T) {
 
 	// confirm that the new todo was added to the end of the list for the open status
 	assert.Equal(database.Statuses[db.StatusOpen].Todos[todo.Rank].Title, title)
+
+	todo1, err := database.NewTodo(ctx, "", description)
+	assert.Nil(todo1)
+	assert.ErrorIs(err, db.ErrEmptyTitle)
 }
 
 func TestUpdateTodo(t *testing.T) {
@@ -235,6 +240,9 @@ func TestUpdateTodo(t *testing.T) {
 
 	assert.Equal(title, todo.Title)
 	assert.Equal(description, todo.Description)
+
+	err = database.UpdateTodo(ctx, todo, "", description)
+	assert.ErrorIs(err, db.ErrEmptyTitle)
 }
 
 func TestAddTodoLabel(t *testing.T) {

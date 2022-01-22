@@ -37,6 +37,8 @@ var (
 	ErrCantMoveLastTodoDown = errors.New("cannot move down the last todo")
 	// ErrNilTodo is returned when a modification is attempted on a nil Todo.
 	ErrNilTodo = errors.New("no Todo is currently selected")
+	// ErrEmptyTitle is returned when a new or modified todo has no title.
+	ErrEmptyTitle = errors.New("Todo title cannot be empty")
 )
 
 // Database manages the db connection and the state of the system.
@@ -293,6 +295,10 @@ func (d *Database) loadTodoLabels(ctx context.Context) error {
 // NewTodo creates a new Todo with the given title and description; the Todo is added
 // at the end of the open list.
 func (d *Database) NewTodo(ctx context.Context, title, description string) (*Todo, error) {
+	if len(title) == 0 {
+		return nil, ErrEmptyTitle
+	}
+
 	open := d.Statuses[StatusOpen]
 
 	rank := len(open.Todos)
@@ -331,6 +337,10 @@ func (d *Database) NewTodo(ctx context.Context, title, description string) (*Tod
 func (d *Database) UpdateTodo(ctx context.Context, todo *Todo, title, description string) error {
 	if todo == nil {
 		return ErrNilTodo
+	}
+
+	if len(title) == 0 {
+		return ErrEmptyTitle
 	}
 
 	_, err := d.conn.ExecContext(ctx,
