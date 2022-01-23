@@ -369,7 +369,7 @@ func TestChangeStatusValidatesClosedListLimit(t *testing.T) {
 		todos = append(todos, todo)
 	}
 
-	for i, todo := range todos {
+	for idx, todo := range todos {
 		err := database.ChangeStatus(
 			context.Background(),
 			todo,
@@ -377,7 +377,7 @@ func TestChangeStatusValidatesClosedListLimit(t *testing.T) {
 			database.Statuses[db.StatusClosed],
 		)
 
-		if i < 5 {
+		if idx < 5 {
 			assert.Nil(err)
 		} else {
 			assert.ErrorIs(err, db.ErrMaxClosedTodos)

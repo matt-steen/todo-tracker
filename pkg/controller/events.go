@@ -114,27 +114,27 @@ func (c *Controller) getShowAction(status string) func(key *tcell.EventKey) *tce
 }
 
 func (c *Controller) initShowEvents(events map[tcell.Key]KeyEvent) {
-	events[KeyShiftO] = KeyEvent{
+	events[KeyO] = KeyEvent{
 		Description: "Show Open",
 		Action:      c.getShowAction(db.StatusOpen),
 	}
 
-	events[KeyShiftC] = KeyEvent{
+	events[KeyC] = KeyEvent{
 		Description: "Show Closed",
 		Action:      c.getShowAction(db.StatusClosed),
 	}
 
-	events[KeyShiftD] = KeyEvent{
+	events[KeyD] = KeyEvent{
 		Description: "Show Done",
 		Action:      c.getShowAction(db.StatusDone),
 	}
 
-	events[KeyShiftH] = KeyEvent{
+	events[KeyH] = KeyEvent{
 		Description: "Show On Hold",
 		Action:      c.getShowAction(db.StatusOnHold),
 	}
 
-	events[KeyShiftA] = KeyEvent{
+	events[KeyA] = KeyEvent{
 		Description: "Show Abandoned",
 		Action:      c.getShowAction(db.StatusAbandoned),
 	}
@@ -172,27 +172,27 @@ func (c *Controller) getMoveAction(status string) func(key *tcell.EventKey) *tce
 }
 
 func (c *Controller) initMoveEvents(events map[tcell.Key]KeyEvent) {
-	events[KeyO] = KeyEvent{
+	events[KeyShiftO] = KeyEvent{
 		Description: "Move to Open",
 		Action:      c.getMoveAction(db.StatusOpen),
 	}
 
-	events[KeyC] = KeyEvent{
+	events[KeyShiftC] = KeyEvent{
 		Description: "Move to Closd",
 		Action:      c.getMoveAction(db.StatusClosed),
 	}
 
-	events[KeyD] = KeyEvent{
+	events[KeyShiftD] = KeyEvent{
 		Description: "Move to Done",
 		Action:      c.getMoveAction(db.StatusDone),
 	}
 
-	events[KeyH] = KeyEvent{
+	events[KeyShiftH] = KeyEvent{
 		Description: "Move to On Hold",
 		Action:      c.getMoveAction(db.StatusOnHold),
 	}
 
-	events[KeyA] = KeyEvent{
+	events[KeyShiftA] = KeyEvent{
 		Description: "Move to Abandoned",
 		Action:      c.getMoveAction(db.StatusAbandoned),
 	}

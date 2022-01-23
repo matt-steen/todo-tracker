@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"sort"
 	"syscall"
 
 	"github.com/gdamore/tcell/v2"
@@ -17,8 +18,6 @@ const (
 	descTitleRatio = 2
 )
 
-// TODO (mvp): create a new todo in the UI
-// TODO (mvp): update todo fields
 // TODO (mvp): add a label
 // TODO (mvp): remove a label
 // TODO (mvp): move up/down
@@ -133,6 +132,10 @@ func (c *Controller) getTableGrid(status string) *tview.Grid {
 	return grid
 }
 
+// getHeader returns the header used for each list of todos.
+// it shows the status at the top, followed by 3 columns listing keyboard shortcuts.
+// the first column contains misc shortcuts, the second contains "Show <status>" shortcuts,
+// and the third contains "Move to <status>" shortcuts. All three columns are sorted alphabetically.
 func (c *Controller) getHeader(status string) *tview.Table {
 	table := tview.NewTable().SetBorders(false).SetSelectable(false, false)
 
@@ -140,11 +143,36 @@ func (c *Controller) getHeader(status string) *tview.Table {
 	table.SetCell(row, 0, tview.NewTableCell(fmt.Sprintf("[yellow]%s", status)))
 	row++
 
-	// TODO (medium): control keyboard shortcut ordering in header!
-	// what order do we want, and how should that information be made available here?
+	shortcuts := map[int][]string{
+		0: {},
+		1: {},
+		2: {},
+	}
+
 	for key, event := range c.events {
 		text := fmt.Sprintf("[orange]<%s>[white] %s", tcell.KeyNames[key], event.Description)
-		table.SetCell(row, 0, tview.NewTableCell(text))
+
+		switch event.Description[:4] {
+		case "Show":
+			shortcuts[1] = append(shortcuts[1], text)
+		case "Move":
+			shortcuts[2] = append(shortcuts[2], text)
+		default:
+			shortcuts[0] = append(shortcuts[0], text)
+		}
+	}
+
+	for col := 0; col < 3; col++ {
+		sort.Strings(shortcuts[col])
+	}
+
+	for row-1 < len(shortcuts[0]) || row-1 < len(shortcuts[1]) {
+		for col := 0; col < 3; col++ {
+			if row-1 < len(shortcuts[col]) {
+				table.SetCell(row, col, tview.NewTableCell(shortcuts[col][row-1]).SetExpansion(1))
+			}
+		}
+
 		row++
 	}
 
@@ -154,9 +182,37 @@ func (c *Controller) getHeader(status string) *tview.Table {
 func (c *Controller) getFormGrid() *tview.Grid {
 	grid := tview.NewGrid().SetBorders(true)
 
-	// TODO (low): flesh out form header
-	header := tview.NewTable().SetBorders(false).SetSelectable(false, false)
+	header := c.getFormHeader()
+	c.initForm()
 
+	grid.AddItem(header, 0, 0, 1, 1, 0, 0, false)
+	grid.AddItem(c.form, 1, 0, 1, 1, 0, 0, true)
+
+	return grid
+}
+
+func (c *Controller) getFormHeader() *tview.Table {
+	table := tview.NewTable().SetBorders(false).SetSelectable(false, false)
+	row := 0
+
+	action := "New Todo"
+	if c.selectedTodo != nil {
+		action = "Edit Todo"
+	}
+
+	table.SetCell(row, 0, tview.NewTableCell(fmt.Sprintf("[yellow]%s", action)))
+	row++
+
+	for key, event := range c.todoEditEvents {
+		text := fmt.Sprintf("[orange]<%s>[white] %s", tcell.KeyNames[key], event.Description)
+		table.SetCell(row, 0, tview.NewTableCell(text))
+		row++
+	}
+
+	return table
+}
+
+func (c *Controller) initForm() {
 	titleMax := 50
 	descriptionMax := 500
 
@@ -193,14 +249,7 @@ func (c *Controller) getFormGrid() *tview.Grid {
 		}
 
 		// TODO (medium): highlight newly added todo after switching
-
-		// TODO (mvp): don't preempt form input for action keys. should I add an explicit cancel button to leave the form?
 	})
-
-	grid.AddItem(header, 0, 0, 1, 1, 0, 0, false)
-	grid.AddItem(c.form, 1, 0, 1, 1, 0, 0, true)
-
-	return grid
 }
 
 func (c *Controller) getTodoForRow(row int) *db.Todo {
