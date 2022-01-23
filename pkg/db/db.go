@@ -506,7 +506,9 @@ func (d *Database) MoveUp(ctx context.Context, todo *Todo) error {
 		return ErrCantMoveFirstTodoUp
 	}
 
-	prevTodo := todo.Status.Todos[todo.Rank-1]
+	todos := todo.Status.Todos
+
+	prevTodo := todos[todo.Rank-1]
 
 	txn, err := d.conn.BeginTx(ctx, nil)
 	if err != nil {
@@ -530,6 +532,8 @@ func (d *Database) MoveUp(ctx context.Context, todo *Todo) error {
 		return fmt.Errorf("error committing changes: %w", err)
 	}
 
+	todos[todo.Rank-1], todos[todo.Rank] = todos[todo.Rank], todos[todo.Rank-1]
+
 	todo.Rank--
 	prevTodo.Rank++
 
@@ -544,11 +548,20 @@ func (d *Database) MoveDown(ctx context.Context, todo *Todo) error {
 		return ErrNilTodo
 	}
 
-	if todo.Rank == len(todo.Status.Todos)-1 {
+	if todo.Rank >= len(todo.Status.Todos)-1 {
 		return ErrCantMoveLastTodoDown
 	}
 
 	nextTodo := todo.Status.Todos[todo.Rank+1]
+
+	log.Debug().Msgf(
+		"calling moveDown for status %s, todo '%s' with rank %d, and nextTodo '%s' with rank %d",
+		todo.Status.Name,
+		todo.Title,
+		todo.Rank,
+		nextTodo.Title,
+		nextTodo.Rank,
+	)
 
 	return d.MoveUp(ctx, nextTodo)
 }

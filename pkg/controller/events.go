@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"os"
 
 	"github.com/gdamore/tcell/v2"
@@ -18,6 +19,8 @@ func (c *Controller) initEvents() {
 	c.initEditEvent(c.events)
 
 	c.initMoveEvents(c.events)
+
+	c.initRerankEvents(c.events)
 
 	c.initExitEvent(c.events)
 
@@ -137,6 +140,40 @@ func (c *Controller) initShowEvents(events map[tcell.Key]KeyEvent) {
 	events[KeyA] = KeyEvent{
 		Description: "Show Abandoned",
 		Action:      c.getShowAction(db.StatusAbandoned),
+	}
+}
+
+func (c *Controller) getRerankAction(direction string) func(key *tcell.EventKey) *tcell.EventKey {
+	return func(key *tcell.EventKey) *tcell.EventKey {
+		var moveFunc func(ctx context.Context, todo *db.Todo) error
+		if direction == "up" {
+			moveFunc = c.db.MoveUp
+		} else {
+			moveFunc = c.db.MoveDown
+		}
+
+		err := moveFunc(c.ctx, c.selectedTodo)
+		if err != nil {
+			log.Error().Err(err).Msgf("error moving %s", direction)
+
+			return key
+		}
+
+		// TODO (bug): update the selection if the move was successful
+
+		return key
+	}
+}
+
+func (c *Controller) initRerankEvents(events map[tcell.Key]KeyEvent) {
+	events[KeyShiftK] = KeyEvent{
+		Description: "Shift Up",
+		Action:      c.getRerankAction("up"),
+	}
+
+	events[KeyShiftJ] = KeyEvent{
+		Description: "Shift Down",
+		Action:      c.getRerankAction("down"),
 	}
 }
 

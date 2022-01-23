@@ -399,6 +399,9 @@ func TestMoveUpTodo(t *testing.T) {
 	assert.Equal(0, todo1.Rank)
 	assert.Equal(1, todo2.Rank)
 
+	assert.Equal(todo1.Title, database.Statuses[db.StatusOpen].Todos[0].Title)
+	assert.Equal(todo2.Title, database.Statuses[db.StatusOpen].Todos[1].Title)
+
 	err := database.MoveUp(context.Background(), todo1)
 	assert.ErrorIs(err, db.ErrCantMoveFirstTodoUp)
 
@@ -407,6 +410,9 @@ func TestMoveUpTodo(t *testing.T) {
 
 	assert.Equal(1, todo1.Rank)
 	assert.Equal(0, todo2.Rank)
+
+	assert.Equal(todo2.Title, database.Statuses[db.StatusOpen].Todos[0].Title)
+	assert.Equal(todo1.Title, database.Statuses[db.StatusOpen].Todos[1].Title)
 }
 
 func TestMoveDownTodo(t *testing.T) {
@@ -423,6 +429,9 @@ func TestMoveDownTodo(t *testing.T) {
 	assert.Equal(0, todo1.Rank)
 	assert.Equal(1, todo2.Rank)
 
+	assert.Equal(todo1.Title, database.Statuses[db.StatusOpen].Todos[0].Title)
+	assert.Equal(todo2.Title, database.Statuses[db.StatusOpen].Todos[1].Title)
+
 	err := database.MoveDown(context.Background(), todo2)
 	assert.ErrorIs(err, db.ErrCantMoveLastTodoDown)
 
@@ -431,4 +440,7 @@ func TestMoveDownTodo(t *testing.T) {
 
 	assert.Equal(1, todo1.Rank)
 	assert.Equal(0, todo2.Rank)
+
+	assert.Equal(todo2.Title, database.Statuses[db.StatusOpen].Todos[0].Title)
+	assert.Equal(todo1.Title, database.Statuses[db.StatusOpen].Todos[1].Title)
 }
