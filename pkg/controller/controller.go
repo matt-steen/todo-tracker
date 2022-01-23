@@ -30,6 +30,9 @@ type Controller struct {
 	db             *db.Database
 	app            *tview.Application
 	pages          *tview.Pages
+	form           *tview.Form
+	titleField     *tview.InputField
+	descField      *tview.InputField
 	tables         map[string]*tview.Table
 	statusContents map[string]*StatusContent
 	selectedTodo   *db.Todo
@@ -85,10 +88,10 @@ func (c *Controller) Go() {
 
 	c.pages = c.initPages()
 
-	c.app.SetInputCapture(c.keyboard)
+	c.app.SetInputCapture(c.handleKeys)
 
 	if len(c.selectedStatus.Todos) > 0 {
-		c.selectedTodo = c.selectedStatus.Todos[0]
+		c.setSelectedTodo(-1, c.selectedStatus.Todos[0])
 	}
 
 	if err := c.app.SetRoot(c.pages, true).SetFocus(c.pages).Run(); err != nil {
@@ -105,15 +108,20 @@ func (c *Controller) initPages() *tview.Pages {
 
 	for status := range c.db.Statuses {
 		pages.AddPage(pageName(status),
-			c.getGrid(status),
+			c.getTableGrid(status),
 			true,
 			status == db.StatusClosed)
 	}
 
+	pages.AddPage(pageName("form"),
+		c.getFormGrid(),
+		true,
+		false)
+
 	return pages
 }
 
-func (c *Controller) getGrid(status string) *tview.Grid {
+func (c *Controller) getTableGrid(status string) *tview.Grid {
 	header := c.getHeader(status)
 	c.tables[status] = c.getTable(status)
 
@@ -143,6 +151,58 @@ func (c *Controller) getHeader(status string) *tview.Table {
 	return table
 }
 
+func (c *Controller) getFormGrid() *tview.Grid {
+	grid := tview.NewGrid().SetBorders(true)
+
+	// TODO (low): flesh out form header
+	header := tview.NewTable().SetBorders(false).SetSelectable(false, false)
+
+	titleMax := 50
+	descriptionMax := 500
+
+	c.form = tview.NewForm().
+		AddInputField("Title", "", titleMax, nil, nil).
+		AddInputField("Description", "", descriptionMax, nil, nil)
+
+	c.titleField, _ = c.form.GetFormItemByLabel("Title").(*tview.InputField)
+	c.descField, _ = c.form.GetFormItemByLabel("Description").(*tview.InputField)
+	c.form.AddButton("Save", func() {
+		var err error
+		var todo *db.Todo
+
+		log.Debug().Msgf("saving todo with title '%s'. c.selectedTodo: %p", c.titleField.GetText(), c.selectedTodo)
+		if c.selectedTodo == nil {
+			todo, err = c.db.NewTodo(c.ctx, c.titleField.GetText(), c.descField.GetText())
+		} else {
+			err = c.db.UpdateTodo(c.ctx, c.selectedTodo, c.titleField.GetText(), c.descField.GetText())
+		}
+		if err != nil {
+			log.Err(err).Msg("error saving the new todo")
+
+			return
+		}
+
+		c.titleField.SetText("")
+		c.descField.SetText("")
+
+		// if we don't know where we came from or we created a new todo, then go to open
+		if c.selectedStatus == nil || todo != nil {
+			c.showStatus(db.StatusOpen)
+		} else {
+			c.showStatus(c.selectedStatus.Name)
+		}
+
+		// TODO (medium): highlight newly added todo after switching
+
+		// TODO (mvp): don't preempt form input for action keys. should I add an explicit cancel button to leave the form?
+	})
+
+	grid.AddItem(header, 0, 0, 1, 1, 0, 0, false)
+	grid.AddItem(c.form, 1, 0, 1, 1, 0, 0, true)
+
+	return grid
+}
+
 func (c *Controller) getTodoForRow(row int) *db.Todo {
 	// adjust for the header row
 	if idx := row - 1; idx < len(c.selectedStatus.Todos) && idx >= 0 {
@@ -154,12 +214,21 @@ func (c *Controller) getTodoForRow(row int) *db.Todo {
 
 // when the row selection changes, update the selected Todo.
 func (c *Controller) setCurrentRow(row, col int) {
-	c.selectedTodo = c.getTodoForRow(row)
+	c.setSelectedTodo(row, c.getTodoForRow(row))
 }
 
-func (c *Controller) keyboard(evt *tcell.EventKey) *tcell.EventKey {
+func (c *Controller) handleKeys(evt *tcell.EventKey) *tcell.EventKey {
 	key := AsKey(evt)
 	if k, ok := c.events[key]; ok {
+		return k.Action(evt)
+	}
+
+	return evt
+}
+
+func (c *Controller) handleEditKeys(evt *tcell.EventKey) *tcell.EventKey {
+	key := AsKey(evt)
+	if k, ok := c.todoEditEvents[key]; ok {
 		return k.Action(evt)
 	}
 
@@ -197,26 +266,55 @@ func (c *Controller) getTable(status string) *tview.Table {
 	return table
 }
 
+func (c *Controller) setSelectedTodo(row int, todo *db.Todo) {
+	c.selectedTodo = todo
+
+	title := "nil"
+	if todo != nil {
+		title = todo.Title
+	}
+
+	name := "nil"
+	length := 0
+
+	if c.selectedStatus != nil {
+		name = c.selectedStatus.Name
+		length = len(c.selectedStatus.Todos)
+	}
+
+	log.Debug().
+		Str("selectedStatus", name).
+		Int("row", row).
+		Int("len", length).
+		Msgf("setting selectedTodo to '%s'", title)
+}
+
 func (c *Controller) showStatus(status string) {
 	c.selectedStatus = c.db.Statuses[status]
+
+	c.app.SetInputCapture(c.handleKeys)
 
 	c.pages.SwitchToPage(pageName(status))
 
 	row, _ := c.tables[status].GetSelection()
-	st := "nil"
 
 	if len(c.selectedStatus.Todos) > row-1 && row-1 >= 0 {
-		c.selectedTodo = c.selectedStatus.Todos[row-1]
-		st = c.selectedTodo.Title
+		c.setSelectedTodo(row, c.selectedStatus.Todos[row-1])
 	} else {
-		c.selectedTodo = nil
+		c.setSelectedTodo(row, nil)
 	}
+}
 
-	log.Debug().
-		Str("selectedStatus", c.selectedStatus.Name).
-		Int("row", row).
-		Int("len", len(c.selectedStatus.Todos)).
-		Msgf("setting selectedTodo to '%s'", st)
+// TODO (bug): on edit, e is often appended to focused field
+
+func (c *Controller) switchToForm() {
+	c.pages.SwitchToPage(pageName("form"))
+
+	// TODO (bug): when switching to form, focus isn't always on the title
+	// restore focus to top row in form
+	c.form.SetFocus(0)
+
+	c.app.SetInputCapture(c.handleEditKeys)
 }
 
 // GetCell returns the cell at the given position or nil if no cell.

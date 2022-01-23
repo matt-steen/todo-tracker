@@ -13,12 +13,15 @@ func (c *Controller) initEvents() {
 	c.todoEditEvents = map[tcell.Key]KeyEvent{}
 
 	c.initShowEvents(c.events)
-	c.initShowEvents(c.todoEditEvents)
 
-	c.initMoveEvents(c.todoEditEvents)
+	c.initNewEvent(c.events)
+	c.initEditEvent(c.events)
+
+	c.initMoveEvents(c.events)
 
 	c.initExitEvent(c.events)
-	c.initExitEvent(c.todoEditEvents)
+
+	c.initCancelEvent(c.todoEditEvents)
 }
 
 func (c *Controller) getExitAction() func(key *tcell.EventKey) *tcell.EventKey {
@@ -37,6 +40,68 @@ func (c *Controller) initExitEvent(events map[tcell.Key]KeyEvent) {
 	events[KeyQ] = KeyEvent{
 		Description: "Exit",
 		Action:      c.getExitAction(),
+	}
+}
+
+func (c *Controller) getCancelAction() func(key *tcell.EventKey) *tcell.EventKey {
+	return func(key *tcell.EventKey) *tcell.EventKey {
+		log.Debug().Msg("cancelling update/creation in progress")
+
+		status := db.StatusClosed
+		if c.selectedStatus != nil {
+			status = c.selectedStatus.Name
+		}
+
+		c.showStatus(status)
+
+		return key
+	}
+}
+
+func (c *Controller) initCancelEvent(events map[tcell.Key]KeyEvent) {
+	events[tcell.KeyEscape] = KeyEvent{
+		Description: "Cancel",
+		Action:      c.getCancelAction(),
+	}
+}
+
+func (c *Controller) initNewEvent(events map[tcell.Key]KeyEvent) {
+	events[KeyN] = KeyEvent{
+		Description: "New Todo",
+		Action: func(key *tcell.EventKey) *tcell.EventKey {
+			c.setSelectedTodo(-1, nil)
+			c.switchToForm()
+
+			return key
+		},
+	}
+}
+
+func (c *Controller) getEditAction() func(key *tcell.EventKey) *tcell.EventKey {
+	log.Debug().Msgf("in getEditAction. c.selectedTodo: %p", c.selectedTodo)
+
+	return func(key *tcell.EventKey) *tcell.EventKey {
+		if c.selectedTodo == nil {
+			log.Debug().Msgf("cannot edit: c.selectedTodo is nil. selectedStatus: %p", c.selectedStatus)
+
+			return key
+		}
+
+		c.titleField.SetText(c.selectedTodo.Title)
+		c.descField.SetText(c.selectedTodo.Description)
+
+		log.Debug().Msgf("about to edit todo '%s", c.selectedTodo.Title)
+
+		c.switchToForm()
+
+		return key
+	}
+}
+
+func (c *Controller) initEditEvent(events map[tcell.Key]KeyEvent) {
+	events[KeyE] = KeyEvent{
+		Description: "Edit Todo",
+		Action:      c.getEditAction(),
 	}
 }
 
@@ -85,9 +150,14 @@ func (c *Controller) getMoveAction(status string) func(key *tcell.EventKey) *tce
 				title = c.selectedTodo.Title
 			}
 
+			name := ""
+			if c.selectedStatus != nil {
+				name = c.selectedStatus.Name
+			}
+
 			log.Warn().Err(err).Msgf(
-				"error while trying to change status from %s to %s for todo %s.",
-				c.selectedStatus.Name,
+				"error while trying to change status from '%s' to '%s' for todo '%s'.",
+				name,
 				status,
 				title,
 			)
