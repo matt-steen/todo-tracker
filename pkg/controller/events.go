@@ -69,7 +69,7 @@ func (c *Controller) initCancelEvent(events map[tcell.Key]KeyEvent) {
 }
 
 func (c *Controller) initNewEvent(events map[tcell.Key]KeyEvent) {
-	events[KeyN] = KeyEvent{
+	events[KeyShiftN] = KeyEvent{
 		Description: "New Todo",
 		Action: func(key *tcell.EventKey) *tcell.EventKey {
 			c.setSelectedTodo(-1, nil)
@@ -102,7 +102,7 @@ func (c *Controller) getEditAction() func(key *tcell.EventKey) *tcell.EventKey {
 }
 
 func (c *Controller) initEditEvent(events map[tcell.Key]KeyEvent) {
-	events[KeyE] = KeyEvent{
+	events[KeyShiftE] = KeyEvent{
 		Description: "Edit Todo",
 		Action:      c.getEditAction(),
 	}
