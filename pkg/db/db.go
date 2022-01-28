@@ -390,7 +390,6 @@ func (d *Database) UpdateLabel(ctx context.Context, label *Label, name string) e
 	return nil
 }
 
-// TODO (medium): improve validation for status changes (e.g. can't move closed to open, or open to done).
 func validateStatusChange(todo *Todo, oldStatus, newStatus *Status) error {
 	if todo == nil {
 		return ErrNilTodo
