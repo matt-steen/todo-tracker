@@ -9,6 +9,8 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+// TODO (mvp): organize/refactor event setup
+
 func (c *Controller) initEvents() {
 	c.events = map[tcell.Key]KeyEvent{}
 	c.formEvents = map[tcell.Key]KeyEvent{}
@@ -27,6 +29,24 @@ func (c *Controller) initEvents() {
 	c.initExitEvent(c.events)
 
 	c.initCancelEvent(c.formEvents)
+}
+
+func (c *Controller) handleKeys(evt *tcell.EventKey) *tcell.EventKey {
+	key := AsKey(evt)
+	if k, ok := c.events[key]; ok {
+		return k.Action(evt)
+	}
+
+	return evt
+}
+
+func (c *Controller) handleEditKeys(evt *tcell.EventKey) *tcell.EventKey {
+	key := AsKey(evt)
+	if k, ok := c.formEvents[key]; ok {
+		return k.Action(evt)
+	}
+
+	return evt
 }
 
 func (c *Controller) getExitAction() func(key *tcell.EventKey) *tcell.EventKey {
