@@ -20,7 +20,6 @@ const (
 
 // TODO (mvp): add a label
 // TODO (mvp): remove a label
-// TODO (mvp): move up/down
 // TODO (medium): view recently done tasks (needs more thought)
 
 // Controller mediates between the model and the view.
@@ -353,8 +352,6 @@ func (c *Controller) showStatus(status string) {
 		c.setSelectedTodo(row, nil)
 	}
 }
-
-// TODO (bug): on edit, e is often appended to focused field
 
 func (c *Controller) switchToForm() {
 	c.pages.SwitchToPage(pageName("form"))

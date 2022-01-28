@@ -75,7 +75,7 @@ func (c *Controller) initNewEvent(events map[tcell.Key]KeyEvent) {
 			c.setSelectedTodo(-1, nil)
 			c.switchToForm()
 
-			return key
+			return nil
 		},
 	}
 }
@@ -97,7 +97,7 @@ func (c *Controller) getEditAction() func(key *tcell.EventKey) *tcell.EventKey {
 
 		c.switchToForm()
 
-		return key
+		return nil
 	}
 }
 
