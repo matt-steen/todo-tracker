@@ -233,14 +233,19 @@ func (c *Controller) initForm() {
 		c.titleField.SetText("")
 		c.descField.SetText("")
 
+		var rank int
 		// if we don't know where we came from or we created a new todo, then go to open
-		if c.selectedStatus == nil || todo != nil {
-			c.showStatus(db.StatusOpen)
+		status := db.StatusOpen
+		if c.selectedStatus != nil && todo == nil {
+			status = c.selectedStatus.Name
+			rank = c.selectedTodo.Rank
 		} else {
-			c.showStatus(c.selectedStatus.Name)
+			rank = todo.Rank
 		}
 
-		// TODO (mvp): highlight newly added todo after switching
+		// select the new/edited todo and return to the todo list for its status
+		c.updateTableSelection(status, rank)
+		c.showStatus(status)
 	})
 }
 
@@ -310,7 +315,11 @@ func (c *Controller) getTable(status string) *tview.Table {
 // updateTableSelection updates the selection for the table matching the given status to keep it
 // in sync with recently taken actions, e.g. when moving a Todo up or down.
 func (c *Controller) updateTableSelection(status string, rank int) {
-	c.tables[status].Select(rank+1, 0)
+	if c.tables[status].GetRowCount() > rank {
+		c.tables[status].Select(rank+1, 0)
+	} else {
+		log.Warn().Msgf("couldn't select; rank was too high: %d (row count: %d)", rank, c.tables[status].GetRowCount())
+	}
 }
 
 func (c *Controller) setSelectedTodo(row int, todo *db.Todo) {
@@ -341,15 +350,17 @@ func (c *Controller) showStatus(status string) {
 
 	c.app.SetInputCapture(c.handleKeys)
 
-	c.pages.SwitchToPage(pageName(status))
-
 	row, _ := c.tables[status].GetSelection()
 
 	if len(c.selectedStatus.Todos) > row-1 && row-1 >= 0 {
 		c.setSelectedTodo(row, c.selectedStatus.Todos[row-1])
 	} else {
-		c.setSelectedTodo(row, nil)
+		c.setSelectedTodo(row, c.selectedStatus.Todos[len(c.selectedStatus.Todos)-1])
 	}
+
+	c.updateTableSelection(c.selectedStatus.Name, c.selectedTodo.Rank)
+
+	c.pages.SwitchToPage(pageName(status))
 }
 
 func (c *Controller) switchToForm() {
