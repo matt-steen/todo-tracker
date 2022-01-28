@@ -29,8 +29,11 @@ var (
 		"there are already %d closed todos. Complete or abandon something before starting something new",
 		MaxClosedTodos,
 	)
+	// ErrInvalidTodoMoveNoStatusChange is returned from ChangeStatus when the old and new statuses are the same.
+	ErrInvalidTodoMoveNoStatusChange = errors.New("cannot move a todo from one status to itself")
+
 	// ErrInvalidTodoMove is returned from ChangeStatus when the old and new statuses are the same.
-	ErrInvalidTodoMove = errors.New("cannot move a todo from one status to itself")
+	ErrInvalidTodoMove = errors.New("cannot move a todo")
 	// ErrCantMoveFirstTodoUp is returned from MoveUp when the first todo is moved up.
 	ErrCantMoveFirstTodoUp = errors.New("cannot move up the first todo")
 	// ErrCantMoveLastTodoDown is returned from MoveDown when the last todo is moved down.
@@ -387,7 +390,7 @@ func (d *Database) UpdateLabel(ctx context.Context, label *Label, name string) e
 	return nil
 }
 
-// TODO (medium): improve validation for status changes (e.g. can't move closed to open).
+// TODO (medium): improve validation for status changes (e.g. can't move closed to open, or open to done).
 func validateStatusChange(todo *Todo, oldStatus, newStatus *Status) error {
 	if todo == nil {
 		return ErrNilTodo
@@ -398,7 +401,15 @@ func validateStatusChange(todo *Todo, oldStatus, newStatus *Status) error {
 	}
 
 	if newStatus.id == oldStatus.id {
-		return ErrInvalidTodoMove
+		return ErrInvalidTodoMoveNoStatusChange
+	}
+
+	if oldStatus.Name == StatusClosed && newStatus.Name == StatusOpen {
+		return fmt.Errorf("%w from %s to %s", ErrInvalidTodoMove, oldStatus.Name, newStatus.Name)
+	}
+
+	if (oldStatus.Name == StatusOpen || oldStatus.Name == StatusOnHold) && newStatus.Name == StatusDone {
+		return fmt.Errorf("%w from %s to %s", ErrInvalidTodoMove, oldStatus.Name, newStatus.Name)
 	}
 
 	return nil

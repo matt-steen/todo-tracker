@@ -354,6 +354,88 @@ func TestChangeStatus(t *testing.T) {
 	assert.Equal(3, len(database.Statuses[db.StatusOpen].Todos))
 }
 
+func initTestChangeStatusErrors(t *testing.T, assert *assert.Assertions) (*db.Database, map[string]*db.Todo) {
+	database := getDB(assert)
+
+	todos := map[string]*db.Todo{
+		db.StatusOpen:   addTodo(assert, database, "todo open", ""),
+		db.StatusClosed: addTodo(assert, database, "todo closed", ""),
+		db.StatusOnHold: addTodo(assert, database, "todo on hold", ""),
+	}
+
+	ctx := context.Background()
+
+	err := database.ChangeStatus(
+		ctx,
+		todos[db.StatusClosed],
+		database.Statuses[db.StatusOpen],
+		database.Statuses[db.StatusClosed],
+	)
+	assert.Nil(err)
+
+	err = database.ChangeStatus(
+		ctx,
+		todos[db.StatusOnHold],
+		database.Statuses[db.StatusOpen],
+		database.Statuses[db.StatusOnHold],
+	)
+	assert.Nil(err)
+
+	return database, todos
+}
+
+func TestChangeStatusErrors(t *testing.T) {
+	t.Parallel()
+
+	assert := assert.New(t)
+
+	cases := []struct {
+		name                 string
+		oldStatus            string
+		newStatus            string
+		expectedErrorMessage string
+	}{
+		{
+			name:                 "can't move to yourself",
+			oldStatus:            db.StatusOpen,
+			newStatus:            db.StatusOpen,
+			expectedErrorMessage: db.ErrInvalidTodoMoveNoStatusChange.Error(),
+		},
+		{
+			name:                 "can't move closed to open",
+			oldStatus:            db.StatusClosed,
+			newStatus:            db.StatusOpen,
+			expectedErrorMessage: "cannot move a todo from closed to open",
+		},
+		{
+			name:                 "can't move open to done",
+			oldStatus:            db.StatusOpen,
+			newStatus:            db.StatusDone,
+			expectedErrorMessage: "cannot move a todo from open to done",
+		},
+		{
+			name:                 "can't move on hold to done",
+			oldStatus:            db.StatusOnHold,
+			newStatus:            db.StatusDone,
+			expectedErrorMessage: "cannot move a todo from on_hold to done",
+		},
+	}
+
+	database, todos := initTestChangeStatusErrors(t, assert)
+	defer database.Close()
+
+	for _, testCase := range cases {
+		err := database.ChangeStatus(
+			context.Background(),
+			todos[testCase.oldStatus],
+			database.Statuses[testCase.oldStatus],
+			database.Statuses[testCase.newStatus],
+		)
+		assert.NotNil(err)
+		assert.Equal(testCase.expectedErrorMessage, err.Error(), testCase.name)
+	}
+}
+
 func TestChangeStatusValidatesClosedListLimit(t *testing.T) {
 	t.Parallel()
 
