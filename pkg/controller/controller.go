@@ -175,34 +175,33 @@ func (c *Controller) getHeader(status string) *tview.Table {
 func (c *Controller) getFormGrid() *tview.Grid {
 	grid := tview.NewGrid().SetBorders(true)
 
-	header := c.getFormHeader()
+	c.initFormHeader()
 	c.initForm()
 
-	grid.AddItem(header, 0, 0, 1, 1, 0, 0, false)
+	grid.AddItem(c.tables["form"], 0, 0, 1, 1, 0, 0, false)
 	grid.AddItem(c.form, 1, 0, 1, 1, 0, 0, true)
 
 	return grid
 }
 
-func (c *Controller) getFormHeader() *tview.Table {
-	table := tview.NewTable().SetBorders(false).SetSelectable(false, false)
-	row := 0
-
+func (c *Controller) setFormTitle() {
 	action := "New Todo"
 	if c.selectedTodo != nil {
 		action = "Edit Todo"
 	}
 
-	table.SetCell(row, 0, tview.NewTableCell(fmt.Sprintf("[yellow]%s", action)))
-	row++
+	c.tables["form"].SetCell(0, 0, tview.NewTableCell(fmt.Sprintf("[yellow]%s", action)))
+}
+
+func (c *Controller) initFormHeader() {
+	c.tables["form"] = tview.NewTable().SetBorders(false).SetSelectable(false, false)
+	row := 1
 
 	for key, event := range c.todoEditEvents {
 		text := fmt.Sprintf("[orange]<%s>[white] %s", tcell.KeyNames[key], event.Description)
-		table.SetCell(row, 0, tview.NewTableCell(text))
+		c.tables["form"].SetCell(row, 0, tview.NewTableCell(text))
 		row++
 	}
-
-	return table
 }
 
 func (c *Controller) initForm() {
@@ -241,7 +240,7 @@ func (c *Controller) initForm() {
 			c.showStatus(c.selectedStatus.Name)
 		}
 
-		// TODO (medium): highlight newly added todo after switching
+		// TODO (mvp): highlight newly added todo after switching
 	})
 }
 
@@ -354,6 +353,8 @@ func (c *Controller) showStatus(status string) {
 }
 
 func (c *Controller) switchToForm() {
+	c.setFormTitle()
+
 	c.form.SetFocus(0)
 
 	c.pages.SwitchToPage(pageName("form"))
