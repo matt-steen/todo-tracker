@@ -11,7 +11,7 @@ import (
 
 func (c *Controller) initEvents() {
 	c.events = map[tcell.Key]KeyEvent{}
-	c.todoEditEvents = map[tcell.Key]KeyEvent{}
+	c.formEvents = map[tcell.Key]KeyEvent{}
 
 	c.initShowEvents(c.events)
 
@@ -26,7 +26,7 @@ func (c *Controller) initEvents() {
 
 	c.initExitEvent(c.events)
 
-	c.initCancelEvent(c.todoEditEvents)
+	c.initCancelEvent(c.formEvents)
 }
 
 func (c *Controller) getExitAction() func(key *tcell.EventKey) *tcell.EventKey {

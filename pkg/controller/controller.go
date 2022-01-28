@@ -20,32 +20,50 @@ const (
 
 // TODO (medium): view recently done tasks (needs more thought)
 
-// TODO (mvp): document Controller members
-
 // TODO (mvp): organize functions in controller.go
 
 // TODO (mvp): how to display error messages?
 
 // Controller mediates between the model and the view.
 type Controller struct {
-	ctx            context.Context
-	db             *db.Database
-	app            *tview.Application
-	pages          *tview.Pages
-	form           *tview.Form
-	titleField     *tview.InputField
-	descField      *tview.InputField
-	labelForm      *tview.Form
-	labelDropDown  *tview.DropDown
-	addLabel       bool
-	tables         map[string]*tview.Table
-	statusContents map[string]*StatusContent
-	selectedTodo   *db.Todo
+	ctx context.Context
+	db  *db.Database
+	app *tview.Application
+
+	// selectedStatus contains the most recently selected Status, which is needed to return when escaping from a form,
+	// among other cases.
 	selectedStatus *db.Status
-	// events accessible from any status page
+	// selectedTodo contains the currently selected Todo object that will be acted upon by shortcut keys. It may be nil!
+	selectedTodo *db.Todo
+
+	// Controller maintains programatically named pages that the user can switch between.
+	// Importantly, the contents of each page exist even when not visible.
+	// There's one page for each status, where we display the Todos with that status,
+	// one page with a basic form to add or edit Todos, and one page with a form to add or remove Labels from a Todo.
+	pages *tview.Pages
+
+	// statusTables stores one table per status; these are the visible table objects that contain the Todos and a
+	// header row.
+	statusTables map[string]*tview.Table
+
+	formHeaderTables map[string]*tview.Table
+
+	// The todoForm contains fields for the title and description and a save button.
+	todoForm   *tview.Form
+	titleField *tview.InputField
+	descField  *tview.InputField
+
+	// The labelForm contains a dropdown that lists either Labels that do or do not currently apply to the selectedTodo
+	// depending on whether we are adding or removing Labels. It also contains a save button.
+	labelForm     *tview.Form
+	labelDropDown *tview.DropDown
+	// addLabel indicates whether we are currently adding or removing a label
+	addLabel bool
+
+	// events contains a map of keyboard actions accessible from status pages
 	events map[tcell.Key]KeyEvent
-	// events accessible only on the todo edit page
-	todoEditEvents map[tcell.Key]KeyEvent
+	// formEvents contains a map of keyboard actions accessible from form pages
+	formEvents map[tcell.Key]KeyEvent
 }
 
 // KeyEvent defines an event associated with a keypress.
@@ -57,11 +75,11 @@ type KeyEvent struct {
 // NewController creates a new Controller to run the app.
 func NewController(ctx context.Context, db *db.Database) (*Controller, error) {
 	controller := Controller{
-		ctx:            ctx,
-		db:             db,
-		app:            tview.NewApplication(),
-		statusContents: map[string]*StatusContent{},
-		tables:         map[string]*tview.Table{},
+		ctx:              ctx,
+		db:               db,
+		app:              tview.NewApplication(),
+		statusTables:     map[string]*tview.Table{},
+		formHeaderTables: map[string]*tview.Table{},
 	}
 
 	initKeys()
@@ -127,13 +145,13 @@ func (c *Controller) initPages() *tview.Pages {
 
 func (c *Controller) getTableGrid(status string) *tview.Grid {
 	header := c.getHeader(status)
-	c.tables[status] = c.getTable(status)
+	c.statusTables[status] = c.getTable(status)
 
 	grid := tview.NewGrid().SetBorders(true)
 
 	// TODO (low): adjust all headers to take up less space (be consistent!)
 	grid.AddItem(header, 0, 0, 1, 1, 0, 0, false)
-	grid.AddItem(c.tables[status], 1, 0, 1, 1, 0, 0, true)
+	grid.AddItem(c.statusTables[status], 1, 0, 1, 1, 0, 0, true)
 
 	return grid
 }
@@ -193,8 +211,8 @@ func (c *Controller) getFormGrid() *tview.Grid {
 	c.initFormHeader(name)
 	c.initForm()
 
-	grid.AddItem(c.tables[name], 0, 0, 1, 1, 0, 0, false)
-	grid.AddItem(c.form, 1, 0, 1, 1, 0, 0, true)
+	grid.AddItem(c.formHeaderTables[name], 0, 0, 1, 1, 0, 0, false)
+	grid.AddItem(c.todoForm, 1, 0, 1, 1, 0, 0, true)
 
 	return grid
 }
@@ -207,23 +225,23 @@ func (c *Controller) getLabelFormGrid() *tview.Grid {
 	c.initFormHeader(name)
 	c.initLabelForm()
 
-	grid.AddItem(c.tables[name], 0, 0, 1, 1, 0, 0, false)
+	grid.AddItem(c.formHeaderTables[name], 0, 0, 1, 1, 0, 0, false)
 	grid.AddItem(c.labelForm, 1, 0, 1, 1, 0, 0, true)
 
 	return grid
 }
 
 func (c *Controller) setFormTitle(tableName, title string) {
-	c.tables[tableName].SetCell(0, 0, tview.NewTableCell(fmt.Sprintf("[yellow]%s", title)))
+	c.formHeaderTables[tableName].SetCell(0, 0, tview.NewTableCell(fmt.Sprintf("[yellow]%s", title)))
 }
 
 func (c *Controller) initFormHeader(name string) {
-	c.tables[name] = tview.NewTable().SetBorders(false).SetSelectable(false, false)
+	c.formHeaderTables[name] = tview.NewTable().SetBorders(false).SetSelectable(false, false)
 	row := 1
 
-	for key, event := range c.todoEditEvents {
+	for key, event := range c.formEvents {
 		text := fmt.Sprintf("[orange]<%s>[white] %s", tcell.KeyNames[key], event.Description)
-		c.tables[name].SetCell(row, 0, tview.NewTableCell(text))
+		c.formHeaderTables[name].SetCell(row, 0, tview.NewTableCell(text))
 		row++
 	}
 }
@@ -232,13 +250,13 @@ func (c *Controller) initForm() {
 	titleMax := 50
 	descriptionMax := 500
 
-	c.form = tview.NewForm().
+	c.todoForm = tview.NewForm().
 		AddInputField("Title", "", titleMax, nil, nil).
 		AddInputField("Description", "", descriptionMax, nil, nil)
 
-	c.titleField, _ = c.form.GetFormItemByLabel("Title").(*tview.InputField)
-	c.descField, _ = c.form.GetFormItemByLabel("Description").(*tview.InputField)
-	c.form.AddButton("Save", func() {
+	c.titleField, _ = c.todoForm.GetFormItemByLabel("Title").(*tview.InputField)
+	c.descField, _ = c.todoForm.GetFormItemByLabel("Description").(*tview.InputField)
+	c.todoForm.AddButton("Save", func() {
 		var err error
 		var todo *db.Todo
 
@@ -360,7 +378,7 @@ func (c *Controller) handleKeys(evt *tcell.EventKey) *tcell.EventKey {
 
 func (c *Controller) handleEditKeys(evt *tcell.EventKey) *tcell.EventKey {
 	key := AsKey(evt)
-	if k, ok := c.todoEditEvents[key]; ok {
+	if k, ok := c.formEvents[key]; ok {
 		return k.Action(evt)
 	}
 
@@ -370,13 +388,11 @@ func (c *Controller) handleEditKeys(evt *tcell.EventKey) *tcell.EventKey {
 func (c *Controller) getTable(status string) *tview.Table {
 	table := tview.NewTable().SetBorders(false)
 
-	if _, ok := c.statusContents[status]; !ok {
-		c.statusContents[status] = &StatusContent{
-			status: c.db.Statuses[status],
-		}
+	statusContent := &StatusContent{
+		status: c.db.Statuses[status],
 	}
 
-	table.SetContent(c.statusContents[status])
+	table.SetContent(statusContent)
 
 	table.SetSelectable(true, false)
 
@@ -392,10 +408,10 @@ func (c *Controller) getTable(status string) *tview.Table {
 // updateTableSelection updates the selection for the table matching the given status to keep it
 // in sync with recently taken actions, e.g. when moving a Todo up or down.
 func (c *Controller) updateTableSelection(status string, rank int) {
-	if c.tables[status].GetRowCount() > rank {
-		c.tables[status].Select(rank+1, 0)
+	if c.statusTables[status].GetRowCount() > rank {
+		c.statusTables[status].Select(rank+1, 0)
 	} else {
-		log.Warn().Msgf("couldn't select; rank was too high: %d (row count: %d)", rank, c.tables[status].GetRowCount())
+		log.Warn().Msgf("couldn't select; rank was too high: %d (row count: %d)", rank, c.statusTables[status].GetRowCount())
 	}
 }
 
@@ -427,15 +443,21 @@ func (c *Controller) showStatus(status string) {
 
 	c.app.SetInputCapture(c.handleKeys)
 
-	row, _ := c.tables[status].GetSelection()
+	row, _ := c.statusTables[status].GetSelection()
 
-	if len(c.selectedStatus.Todos) > row-1 && row-1 >= 0 {
+	length := len(c.selectedStatus.Todos)
+
+	if length > row-1 && row-1 >= 0 {
 		c.setSelectedTodo(row, c.selectedStatus.Todos[row-1])
+	} else if length > 0 {
+		c.setSelectedTodo(length, c.selectedStatus.Todos[length-1])
 	} else {
-		c.setSelectedTodo(row, c.selectedStatus.Todos[len(c.selectedStatus.Todos)-1])
+		c.setSelectedTodo(-1, nil)
 	}
 
-	c.updateTableSelection(c.selectedStatus.Name, c.selectedTodo.Rank)
+	if c.selectedStatus != nil && c.selectedTodo != nil {
+		c.updateTableSelection(c.selectedStatus.Name, c.selectedTodo.Rank)
+	}
 
 	c.pages.SwitchToPage(pageName(status))
 }
@@ -448,7 +470,7 @@ func (c *Controller) switchToForm() {
 
 	c.setFormTitle("form", title)
 
-	c.form.SetFocus(0)
+	c.todoForm.SetFocus(0)
 
 	c.pages.SwitchToPage(pageName("form"))
 
