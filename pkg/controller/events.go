@@ -18,8 +18,10 @@ func (c *Controller) initEvents() {
 	c.initNewEvent(c.events)
 	c.initEditEvent(c.events)
 
-	c.initMoveEvents(c.events)
+	c.initAddLabelEvent(c.events)
+	c.initRemoveLabelEvent(c.events)
 
+	c.initMoveEvents(c.events)
 	c.initRerankEvents(c.events)
 
 	c.initExitEvent(c.events)
@@ -111,6 +113,46 @@ func (c *Controller) initEditEvent(events map[tcell.Key]KeyEvent) {
 	}
 }
 
+func (c *Controller) initAddLabelEvent(events map[tcell.Key]KeyEvent) {
+	events[KeyShiftL] = KeyEvent{
+		Description: "Add Label",
+		Action: func(key *tcell.EventKey) *tcell.EventKey {
+			if c.selectedTodo == nil {
+				log.Debug().Msgf("cannot modify labels: c.selectedTodo is nil. selectedStatus: %p", c.selectedStatus)
+
+				return key
+			}
+
+			c.addLabel = true
+			c.switchToLabelForm()
+
+			return key
+		},
+	}
+}
+
+func (c *Controller) getRemoveLabelAction() func(key *tcell.EventKey) *tcell.EventKey {
+	return func(key *tcell.EventKey) *tcell.EventKey {
+		if c.selectedTodo == nil {
+			log.Debug().Msgf("cannot modify labels: c.selectedTodo is nil. selectedStatus: %p", c.selectedStatus)
+
+			return key
+		}
+
+		c.addLabel = false
+		c.switchToLabelForm()
+
+		return key
+	}
+}
+
+func (c *Controller) initRemoveLabelEvent(events map[tcell.Key]KeyEvent) {
+	events[KeyShiftR] = KeyEvent{
+		Description: "Remove Label",
+		Action:      c.getRemoveLabelAction(),
+	}
+}
+
 func (c *Controller) getShowAction(status string) func(key *tcell.EventKey) *tcell.EventKey {
 	return func(key *tcell.EventKey) *tcell.EventKey {
 		c.showStatus(status)
@@ -182,6 +224,7 @@ func (c *Controller) initRerankEvents(events map[tcell.Key]KeyEvent) {
 
 func (c *Controller) getMoveAction(status string) func(key *tcell.EventKey) *tcell.EventKey {
 	return func(key *tcell.EventKey) *tcell.EventKey {
+		// TODO (mvp): set selection to the moved todo after move
 		err := c.db.ChangeStatus(c.ctx, c.selectedTodo, c.selectedStatus, c.db.Statuses[status])
 		if err != nil {
 			// TODO (mvp): how to display the error message to the user here?

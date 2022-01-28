@@ -14,9 +14,9 @@ import (
 func main() {
 	ctx := context.Background()
 
-	// TODO (low): handle default and alternate DB locations
+	// TODO (low): handle default and alternate DB locations - env vars
 	dbFilename := "/Users/msteen/code/todo-tracker/test.sqlite"
-	// TODO (low): handle default and alternate log locations
+	// TODO (low): handle default and alternate log locations - env vars
 	logFilename := "/Users/msteen/code/todo-tracker/debug.log"
 
 	// TODO (low): set default log level to info with the option to set it to debug with a flag?

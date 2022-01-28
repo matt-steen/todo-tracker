@@ -18,9 +18,9 @@ const (
 	descTitleRatio = 2
 )
 
-// TODO (mvp): add a label
-// TODO (mvp): remove a label
 // TODO (medium): view recently done tasks (needs more thought)
+
+// TODO (medium): document Controller members
 
 // Controller mediates between the model and the view.
 type Controller struct {
@@ -31,6 +31,9 @@ type Controller struct {
 	form           *tview.Form
 	titleField     *tview.InputField
 	descField      *tview.InputField
+	labelForm      *tview.Form
+	labelDropDown  *tview.DropDown
+	addLabel       bool
 	tables         map[string]*tview.Table
 	statusContents map[string]*StatusContent
 	selectedTodo   *db.Todo
@@ -91,6 +94,8 @@ func (c *Controller) Go() {
 	}
 }
 
+// TODO (medium): organize functions in controller.go
+
 func pageName(status string) string {
 	return fmt.Sprintf("page-%s", status)
 }
@@ -110,6 +115,11 @@ func (c *Controller) initPages() *tview.Pages {
 		true,
 		false)
 
+	pages.AddPage(pageName("labelForm"),
+		c.getLabelFormGrid(),
+		true,
+		false)
+
 	return pages
 }
 
@@ -119,6 +129,7 @@ func (c *Controller) getTableGrid(status string) *tview.Grid {
 
 	grid := tview.NewGrid().SetBorders(true)
 
+	// TODO (low): adjust all headers to take up less space (be consistent!)
 	grid.AddItem(header, 0, 0, 1, 1, 0, 0, false)
 	grid.AddItem(c.tables[status], 1, 0, 1, 1, 0, 0, true)
 
@@ -175,31 +186,42 @@ func (c *Controller) getHeader(status string) *tview.Table {
 func (c *Controller) getFormGrid() *tview.Grid {
 	grid := tview.NewGrid().SetBorders(true)
 
-	c.initFormHeader()
+	name := "form"
+
+	c.initFormHeader(name)
 	c.initForm()
 
-	grid.AddItem(c.tables["form"], 0, 0, 1, 1, 0, 0, false)
+	grid.AddItem(c.tables[name], 0, 0, 1, 1, 0, 0, false)
 	grid.AddItem(c.form, 1, 0, 1, 1, 0, 0, true)
 
 	return grid
 }
 
-func (c *Controller) setFormTitle() {
-	action := "New Todo"
-	if c.selectedTodo != nil {
-		action = "Edit Todo"
-	}
+func (c *Controller) getLabelFormGrid() *tview.Grid {
+	grid := tview.NewGrid().SetBorders(true)
 
-	c.tables["form"].SetCell(0, 0, tview.NewTableCell(fmt.Sprintf("[yellow]%s", action)))
+	name := "labelForm"
+
+	c.initFormHeader(name)
+	c.initLabelForm()
+
+	grid.AddItem(c.tables[name], 0, 0, 1, 1, 0, 0, false)
+	grid.AddItem(c.labelForm, 1, 0, 1, 1, 0, 0, true)
+
+	return grid
 }
 
-func (c *Controller) initFormHeader() {
-	c.tables["form"] = tview.NewTable().SetBorders(false).SetSelectable(false, false)
+func (c *Controller) setFormTitle(tableName, title string) {
+	c.tables[tableName].SetCell(0, 0, tview.NewTableCell(fmt.Sprintf("[yellow]%s", title)))
+}
+
+func (c *Controller) initFormHeader(name string) {
+	c.tables[name] = tview.NewTable().SetBorders(false).SetSelectable(false, false)
 	row := 1
 
 	for key, event := range c.todoEditEvents {
 		text := fmt.Sprintf("[orange]<%s>[white] %s", tcell.KeyNames[key], event.Description)
-		c.tables["form"].SetCell(row, 0, tview.NewTableCell(text))
+		c.tables[name].SetCell(row, 0, tview.NewTableCell(text))
 		row++
 	}
 }
@@ -246,6 +268,68 @@ func (c *Controller) initForm() {
 		// select the new/edited todo and return to the todo list for its status
 		c.updateTableSelection(status, rank)
 		c.showStatus(status)
+	})
+}
+
+func (c *Controller) updateLabelFormOptions() {
+	options := []string{}
+
+	for _, label := range c.db.Labels {
+		found := false
+
+		for _, todoLabel := range c.selectedTodo.Labels {
+			if todoLabel.Name == label.Name {
+				found = true
+
+				break
+			}
+		}
+
+		if (found && !c.addLabel) || (!found && c.addLabel) {
+			options = append(options, label.Name)
+		}
+	}
+
+	c.labelDropDown.SetOptions(options, nil)
+	c.labelDropDown.SetCurrentOption(-1)
+}
+
+func (c *Controller) getSelectedLabel() *db.Label {
+	_, name := c.labelDropDown.GetCurrentOption()
+
+	for _, label := range c.db.Labels {
+		if label.Name == name {
+			return label
+		}
+	}
+
+	log.Error().Msgf("no label found with name '%s'", name)
+
+	return nil
+}
+
+func (c *Controller) initLabelForm() {
+	c.labelForm = tview.NewForm().
+		AddDropDown("Label", []string{}, -1, nil)
+
+	c.labelDropDown, _ = c.labelForm.GetFormItemByLabel("Label").(*tview.DropDown)
+
+	c.labelForm.AddButton("Save", func() {
+		label := c.getSelectedLabel()
+
+		if c.addLabel {
+			log.Debug().Msgf("adding label '%s' to todo '%s'", label.Name, c.selectedTodo.Title)
+			if err := c.db.AddTodoLabel(c.ctx, c.selectedTodo, label); err != nil {
+				log.Error().Msgf("error adding label: %s", err)
+			}
+		} else {
+			log.Debug().Msgf("removing label '%s' to todo '%s'", label.Name, c.selectedTodo.Title)
+			if err := c.db.RemoveTodoLabel(c.ctx, c.selectedTodo, label); err != nil {
+				log.Error().Msgf("error removing label: %s", err)
+			}
+		}
+
+		c.showStatus(c.selectedStatus.Name)
 	})
 }
 
@@ -299,15 +383,6 @@ func (c *Controller) getTable(status string) *tview.Table {
 	if c.selectedStatus != nil && len(c.selectedStatus.Todos) > 0 {
 		table.Select(1, 0).SetFixed(1, 0)
 	}
-
-	// TODO (planning): figure out shortcuts and workflow
-	// should I use vim-style commands (e.g. :q to quit, :mo to move to open, etc?
-	// hit enter to edit or move the todo?
-	// something else?
-	// there are LOTS of options here...
-	/* table.SetSelectedFunc(func (row, col int) {
-
-	})*/
 
 	return table
 }
@@ -364,11 +439,33 @@ func (c *Controller) showStatus(status string) {
 }
 
 func (c *Controller) switchToForm() {
-	c.setFormTitle()
+	title := "New Todo"
+	if c.selectedTodo != nil {
+		title = "Edit Todo"
+	}
+
+	c.setFormTitle("form", title)
 
 	c.form.SetFocus(0)
 
 	c.pages.SwitchToPage(pageName("form"))
+
+	c.app.SetInputCapture(c.handleEditKeys)
+}
+
+func (c *Controller) switchToLabelForm() {
+	title := "Add Label"
+	if !c.addLabel {
+		title = "Remove Label"
+	}
+
+	c.setFormTitle("labelForm", title)
+
+	c.updateLabelFormOptions()
+
+	c.labelForm.SetFocus(0)
+
+	c.pages.SwitchToPage(pageName("labelForm"))
 
 	c.app.SetInputCapture(c.handleEditKeys)
 }
