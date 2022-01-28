@@ -226,7 +226,6 @@ func (c *Controller) getMoveAction(status string) func(key *tcell.EventKey) *tce
 	return func(key *tcell.EventKey) *tcell.EventKey {
 		err := c.db.ChangeStatus(c.ctx, c.selectedTodo, c.selectedStatus, c.db.Statuses[status])
 		if err != nil {
-			// TODO (mvp): how to display the error message to the user here?
 			title := "?"
 			if c.selectedTodo != nil {
 				title = c.selectedTodo.Title

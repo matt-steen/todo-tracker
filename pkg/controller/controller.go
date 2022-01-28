@@ -20,7 +20,11 @@ const (
 
 // TODO (medium): view recently done tasks (needs more thought)
 
-// TODO (medium): document Controller members
+// TODO (mvp): document Controller members
+
+// TODO (mvp): organize functions in controller.go
+
+// TODO (mvp): how to display error messages?
 
 // Controller mediates between the model and the view.
 type Controller struct {
@@ -93,8 +97,6 @@ func (c *Controller) Go() {
 		panic(err)
 	}
 }
-
-// TODO (medium): organize functions in controller.go
 
 func pageName(status string) string {
 	return fmt.Sprintf("page-%s", status)
