@@ -73,6 +73,7 @@ func (c *Controller) initNewEvent(events map[tcell.Key]KeyEvent) {
 		Description: "New Todo",
 		Action: func(key *tcell.EventKey) *tcell.EventKey {
 			c.setSelectedTodo(-1, nil)
+
 			c.switchToForm()
 
 			return nil

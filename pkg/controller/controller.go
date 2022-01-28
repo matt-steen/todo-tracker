@@ -354,11 +354,9 @@ func (c *Controller) showStatus(status string) {
 }
 
 func (c *Controller) switchToForm() {
-	c.pages.SwitchToPage(pageName("form"))
-
-	// TODO (bug): when switching to form, focus isn't always on the title
-	// restore focus to top row in form
 	c.form.SetFocus(0)
+
+	c.pages.SwitchToPage(pageName("form"))
 
 	c.app.SetInputCapture(c.handleEditKeys)
 }
