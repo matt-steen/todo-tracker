@@ -309,6 +309,12 @@ func (c *Controller) getTable(status string) *tview.Table {
 	return table
 }
 
+// updateTableSelection updates the selection for the table matching the given status to keep it
+// in sync with recently taken actions, e.g. when moving a Todo up or down.
+func (c *Controller) updateTableSelection(status string, rank int) {
+	c.tables[status].Select(rank+1, 0)
+}
+
 func (c *Controller) setSelectedTodo(row int, todo *db.Todo) {
 	c.selectedTodo = todo
 

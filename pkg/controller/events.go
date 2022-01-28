@@ -159,7 +159,7 @@ func (c *Controller) getRerankAction(direction string) func(key *tcell.EventKey)
 			return key
 		}
 
-		// TODO (bug): update the selection if the move was successful
+		c.updateTableSelection(c.selectedStatus.Name, c.selectedTodo.Rank)
 
 		return key
 	}
