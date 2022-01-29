@@ -4,6 +4,8 @@ import (
 	"context"
 	"io/fs"
 	"os"
+	"os/user"
+	"path"
 
 	"github.com/matt-steen/todo-tracker/pkg/controller"
 	"github.com/matt-steen/todo-tracker/pkg/db"
@@ -14,10 +16,17 @@ import (
 func main() {
 	ctx := context.Background()
 
-	// TODO (low): handle default and alternate DB locations - env vars
-	dbFilename := "/Users/msteen/code/todo-tracker/test.sqlite"
-	// TODO (low): handle default and alternate log locations - env vars
-	logFilename := "/Users/msteen/code/todo-tracker/debug.log"
+	user, _ := user.Current()
+
+	dbFilename, ok := os.LookupEnv("TT_DB_FILENAME")
+	if !ok {
+		dbFilename = path.Join(user.HomeDir, ".todo_tracker.sqlite")
+	}
+
+	logFilename, ok := os.LookupEnv("TT_LOG_FILENAME")
+	if !ok {
+		logFilename = path.Join(user.HomeDir, ".todo_tracker.log")
+	}
 
 	// TODO (low): set default log level to info with the option to set it to debug with a flag?
 
