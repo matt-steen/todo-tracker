@@ -9,13 +9,22 @@ Inspired by a suggestion from [4,000 Weeks](https://www.goodreads.com/book/show/
 
 ## Getting started
 
-To build the app and get started:
-`make
+To build and launch the app:
 
-tt`
+```bash
+$ make
+$ tt
+```
 
 The default location for the backing sqlite db is `~/.todo_tracker.sqlite`, which may be overridden by setting the `TT_DB_FILENAME` environment variable. Note that the app will initialize a db in the given location if it doesn't exist.
 
 The default location for the debug log is `~/.todo_tracker.log`, which may be overridden by setting the `TT_LOG_FILENAME` environment variable.
 
-Other available actions should be apparent - available keyboard shortcuts are visible in the header. For navigating tables and forms, I don't override tview defaults - for forms, that means tab/Shift+tab to move back and forth between form items, enter to select a button, etc; for tables, that means j/k to move up and down, G to jump to the end, and gg to jump to the top.
+```bash
+$ export TT_DB_FILENAME='/path/to/db.sqlite'
+$ export TT_LOG_FILENAME='/path/to/logfile.log'
+```
+
+While the app is running, available actions should be apparent - keyboard shortcuts are visible in the header.
+
+For navigating tables and forms, I don't override tview defaults - for forms, that means tab/Shift+tab to move back and forth between form items, enter to select a button, etc; for tables, that means j/k to move up and down, G to jump to the end, and gg to jump to the top.
