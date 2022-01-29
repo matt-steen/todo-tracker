@@ -29,7 +29,7 @@ type Todo struct {
 
 // Label contains labels that can be applied to todos.
 type Label struct {
-	id   int
+	ID   int
 	Name string
 }
 

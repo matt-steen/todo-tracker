@@ -147,7 +147,7 @@ func (d *Database) loadLabels(ctx context.Context) error {
 	for rows.Next() {
 		var label Label
 
-		err = rows.Scan(&label.id, &label.Name)
+		err = rows.Scan(&label.ID, &label.Name)
 		if err != nil {
 			return fmt.Errorf("error scanning label: %w", err)
 		}
@@ -272,7 +272,7 @@ func (d *Database) loadTodoLabels(ctx context.Context) error {
 		var label *Label
 
 		for _, l := range d.Labels {
-			if l.id == labelID {
+			if l.ID == labelID {
 				label = l
 
 				break
@@ -372,7 +372,7 @@ func (d *Database) NewLabel(ctx context.Context, name string) (*Label, error) {
 		return nil, fmt.Errorf("error getting id of new label %s: %w", name, err)
 	}
 
-	label := &Label{id: int(id), Name: name}
+	label := &Label{ID: int(id), Name: name}
 	d.Labels = append(d.Labels, label)
 
 	return label, nil
@@ -380,7 +380,7 @@ func (d *Database) NewLabel(ctx context.Context, name string) (*Label, error) {
 
 // UpdateLabel updates the label name.
 func (d *Database) UpdateLabel(ctx context.Context, label *Label, name string) error {
-	_, err := d.conn.ExecContext(ctx, `UPDATE label SET name=$1 WHERE id=$2`, name, label.id)
+	_, err := d.conn.ExecContext(ctx, `UPDATE label SET name=$1 WHERE id=$2`, name, label.ID)
 	if err != nil {
 		return fmt.Errorf("error updating label: %w", err)
 	}
@@ -580,7 +580,7 @@ func (d *Database) MoveDown(ctx context.Context, todo *Todo) error {
 func (d *Database) AddTodoLabel(ctx context.Context, todo *Todo, label *Label) error {
 	_, err := d.conn.ExecContext(ctx,
 		`INSERT INTO todo_label (todo_id, label_id) VALUES ($1, $2)`,
-		todo.id, label.id,
+		todo.id, label.ID,
 	)
 	if err != nil {
 		return fmt.Errorf("error adding label '%s' to todo '%s': %w", label.Name, todo.Title, err)
@@ -595,7 +595,7 @@ func (d *Database) AddTodoLabel(ctx context.Context, todo *Todo, label *Label) e
 func (d *Database) RemoveTodoLabel(ctx context.Context, todo *Todo, label *Label) error {
 	_, err := d.conn.ExecContext(ctx,
 		`DELETE FROM todo_label WHERE todo_id = $1 AND label_id = $2`,
-		todo.id, label.id,
+		todo.id, label.ID,
 	)
 	if err != nil {
 		return fmt.Errorf("error removing label '%s' from todo '%s': %w", label.Name, todo.Title, err)
@@ -603,7 +603,7 @@ func (d *Database) RemoveTodoLabel(ctx context.Context, todo *Todo, label *Label
 
 	// remove the label from the list
 	for i, l := range todo.Labels {
-		if l.id == label.id {
+		if l.ID == label.ID {
 			todo.Labels = append(todo.Labels[:i], todo.Labels[i+1:]...)
 
 			break

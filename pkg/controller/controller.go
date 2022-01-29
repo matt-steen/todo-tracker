@@ -148,7 +148,6 @@ func (c *Controller) initPages() {
 		false)
 }
 
-// TODO (in progress): output error message as well!
 func (c *Controller) setErrorText(msg string) {
 	c.errorText.SetText(msg)
 

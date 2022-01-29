@@ -1,10 +1,32 @@
 package controller
 
 import (
+	"fmt"
+
 	"github.com/gdamore/tcell/v2"
 	"github.com/matt-steen/todo-tracker/pkg/db"
 	"github.com/rivo/tview"
 )
+
+// labelColors is a list of colors for labels to alternate through so that todos with common labels are easier to spot.
+func labelColors() []string {
+	return []string{
+		"#FF0000",
+		"#00FF00",
+		"#0000FF",
+		"#FFFF00",
+		"#FF00FF",
+		"#00FFFF",
+		"#FFFFFF",
+		"#AA0000",
+		"#00AA00",
+		"#0000AA",
+		"#AAAA00",
+		"#AA00AA",
+		"#00AAAA",
+		"#AAAAAA",
+	}
+}
 
 // StatusContent implements tview.TableContent, which tview.Table uses to update data.
 type StatusContent struct {
@@ -40,17 +62,18 @@ func (s *StatusContent) GetCell(row, col int) *tview.TableCell {
 	case 1:
 		return tview.NewTableCell(todo.Description).SetExpansion(descTitleRatio)
 	case 2:
-		// TODO (medium): color-code labels in table (ideally by label id)
 		labels := ""
 		for _, l := range todo.Labels {
 			if len(labels) > 0 {
 				labels += ", "
 			}
 
-			labels += l.Name
+			colors := labelColors()
+
+			labels += fmt.Sprintf("[%s]%s", colors[l.ID%len(colors)], l.Name)
 		}
 
-		return tview.NewTableCell(labels).SetTextColor(tcell.ColorGreen).SetExpansion(1)
+		return tview.NewTableCell(labels).SetExpansion(1)
 	}
 
 	return nil
