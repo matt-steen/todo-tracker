@@ -22,12 +22,7 @@ const (
 	errorTextRows = 2
 )
 
-// TODO (medium): view recently done tasks (needs more thought)
-
-// TODO (mvp): how to display error messages?
-// display in header?
-// add Text object below Header object?
-//     could it be the same one on every page?
+// TODO (medium): view recently done tasks - another page with a list of todos with status Done, updated yesterday?
 
 // Controller mediates between the model and the view.
 type Controller struct {
