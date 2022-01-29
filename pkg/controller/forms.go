@@ -15,13 +15,15 @@ func (c *Controller) switchToForm() {
 		title = "Edit Todo"
 	}
 
-	c.setFormTitle("form", title)
+	name := "form"
+
+	c.setFormTitle(name, title)
 
 	c.todoForm.SetFocus(0)
 
-	c.pages.SwitchToPage(pageName("form"))
+	c.pages.SwitchToPage(pageName(name))
 
-	c.app.SetInputCapture(c.handleEditKeys)
+	c.app.SetInputCapture(c.handleFormKeys)
 }
 
 func (c *Controller) switchToLabelForm() {
@@ -30,15 +32,17 @@ func (c *Controller) switchToLabelForm() {
 		title = "Remove Label"
 	}
 
-	c.setFormTitle("labelForm", title)
+	name := "labelForm"
+
+	c.setFormTitle(name, title)
 
 	c.updateLabelFormOptions()
 
 	c.labelForm.SetFocus(0)
 
-	c.pages.SwitchToPage(pageName("labelForm"))
+	c.pages.SwitchToPage(pageName(name))
 
-	c.app.SetInputCapture(c.handleEditKeys)
+	c.app.SetInputCapture(c.handleFormKeys)
 }
 
 func (c *Controller) getFormGrid() *tview.Grid {

@@ -18,7 +18,7 @@ func (c *Controller) handleKeys(evt *tcell.EventKey) *tcell.EventKey {
 	return evt
 }
 
-func (c *Controller) handleEditKeys(evt *tcell.EventKey) *tcell.EventKey {
+func (c *Controller) handleFormKeys(evt *tcell.EventKey) *tcell.EventKey {
 	key := AsKey(evt)
 	if k, ok := c.formEvents[key]; ok {
 		return k.Action(evt)
