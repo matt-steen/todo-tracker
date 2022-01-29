@@ -26,7 +26,7 @@ var (
 	// ErrMaxClosedTodos is returned from ChangeStatus when attempting to move a todo to the closed list when it is
 	// full (i.e., it already has MaxClosedTodos todos).
 	ErrMaxClosedTodos = fmt.Errorf(
-		"there are already %d closed todos. Complete or abandon something before starting something new",
+		"there are already %d closed todos; complete or abandon something before starting something new",
 		MaxClosedTodos,
 	)
 	// ErrInvalidTodoMoveNoStatusChange is returned from ChangeStatus when the old and new statuses are the same.
@@ -395,12 +395,12 @@ func validateStatusChange(todo *Todo, oldStatus, newStatus *Status) error {
 		return ErrNilTodo
 	}
 
-	if newStatus.Name == StatusClosed && len(newStatus.Todos) >= MaxClosedTodos {
-		return ErrMaxClosedTodos
-	}
-
 	if newStatus.id == oldStatus.id {
 		return ErrInvalidTodoMoveNoStatusChange
+	}
+
+	if newStatus.Name == StatusClosed && len(newStatus.Todos) >= MaxClosedTodos {
+		return ErrMaxClosedTodos
 	}
 
 	if oldStatus.Name == StatusClosed && newStatus.Name == StatusOpen {

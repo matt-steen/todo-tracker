@@ -10,15 +10,24 @@ import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/matt-steen/todo-tracker/pkg/db"
 	"github.com/rivo/tview"
+	"github.com/rs/zerolog/log"
 )
 
 const (
+	// descTitleRatio is the ratio of the description field to the title in Todo tables.
 	descTitleRatio = 2
+	// headerRows is the number of rows to reserve for the header; double this value is used for the body.
+	headerRows = 8
+	// errorTextRows is the number of rows to reserve for the error text.
+	errorTextRows = 2
 )
 
 // TODO (medium): view recently done tasks (needs more thought)
 
 // TODO (mvp): how to display error messages?
+// display in header?
+// add Text object below Header object?
+//     could it be the same one on every page?
 
 // Controller mediates between the model and the view.
 type Controller struct {
@@ -42,7 +51,12 @@ type Controller struct {
 	// header row.
 	statusTables map[string]*tview.Table
 
+	// formHeaderTables store the tables that make up the headers for the forms; we need access to them because
+	// their titles change depending on the current action.
 	formHeaderTables map[string]*tview.Table
+
+	// errorText is a shared component on all pages that displays errors
+	errorText *tview.TextView
 
 	// The todoForm contains fields for the title and description and a save button.
 	todoForm   *tview.Form
@@ -119,6 +133,8 @@ func pageName(status string) string {
 func (c *Controller) initPages() {
 	c.pages = tview.NewPages()
 
+	c.errorText = tview.NewTextView().SetMaxLines(1).SetTextColor(tcell.ColorRed)
+
 	for status := range c.db.Statuses {
 		c.pages.AddPage(pageName(status),
 			c.getStatusGrid(status),
@@ -135,4 +151,13 @@ func (c *Controller) initPages() {
 		c.getLabelFormGrid(),
 		true,
 		false)
+}
+
+// TODO (in progress): output error message as well!
+func (c *Controller) setErrorText(msg string) {
+	c.errorText.SetText(msg)
+
+	if msg != "" {
+		log.Error().Msg(msg)
+	}
 }

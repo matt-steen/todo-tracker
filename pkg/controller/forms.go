@@ -53,8 +53,9 @@ func (c *Controller) getFormGrid() *tview.Grid {
 	c.initFormHeader(name)
 	c.initForm()
 
-	grid.AddItem(c.formHeaderTables[name], 0, 0, 1, 1, 0, 0, false)
-	grid.AddItem(c.todoForm, 1, 0, 1, 1, 0, 0, true)
+	grid.AddItem(c.formHeaderTables[name], 0, 0, headerRows, 1, 0, 0, false)
+	grid.AddItem(c.errorText, headerRows+1, 0, 1, 1, 0, 0, false)
+	grid.AddItem(c.todoForm, headerRows+2, 0, headerRows*2, 1, 0, 0, true)
 
 	return grid
 }
@@ -67,8 +68,9 @@ func (c *Controller) getLabelFormGrid() *tview.Grid {
 	c.initFormHeader(name)
 	c.initLabelForm()
 
-	grid.AddItem(c.formHeaderTables[name], 0, 0, 1, 1, 0, 0, false)
-	grid.AddItem(c.labelForm, 1, 0, 1, 1, 0, 0, true)
+	grid.AddItem(c.formHeaderTables[name], 0, 0, headerRows, 1, 0, 0, false)
+	grid.AddItem(c.errorText, headerRows+1, 0, 1, 1, 0, 0, false)
+	grid.AddItem(c.labelForm, headerRows+2, 0, headerRows*2, 1, 0, 0, true)
 
 	return grid
 }
@@ -109,7 +111,7 @@ func (c *Controller) initForm() {
 			err = c.db.UpdateTodo(c.ctx, c.selectedTodo, c.titleField.GetText(), c.descField.GetText())
 		}
 		if err != nil {
-			log.Err(err).Msg("error saving the new todo")
+			c.setErrorText(fmt.Sprintf("error saving the new todo: %s", err))
 
 			return
 		}
@@ -165,7 +167,7 @@ func (c *Controller) getSelectedLabel() *db.Label {
 		}
 	}
 
-	log.Error().Msgf("no label found with name '%s'", name)
+	c.setErrorText(fmt.Sprintf("no label found with name '%s'", name))
 
 	return nil
 }
@@ -182,12 +184,12 @@ func (c *Controller) initLabelForm() {
 		if c.addLabel {
 			log.Debug().Msgf("adding label '%s' to todo '%s'", label.Name, c.selectedTodo.Title)
 			if err := c.db.AddTodoLabel(c.ctx, c.selectedTodo, label); err != nil {
-				log.Error().Msgf("error adding label: %s", err)
+				c.setErrorText(fmt.Sprintf("error adding label: %s", err))
 			}
 		} else {
 			log.Debug().Msgf("removing label '%s' to todo '%s'", label.Name, c.selectedTodo.Title)
 			if err := c.db.RemoveTodoLabel(c.ctx, c.selectedTodo, label); err != nil {
-				log.Error().Msgf("error removing label: %s", err)
+				c.setErrorText(fmt.Sprintf("error removing label: %s", err))
 			}
 		}
 

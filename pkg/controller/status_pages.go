@@ -16,9 +16,9 @@ func (c *Controller) getStatusGrid(status string) *tview.Grid {
 
 	grid := tview.NewGrid().SetBorders(true)
 
-	// TODO (low): adjust all headers to take up less space (be consistent!)
-	grid.AddItem(header, 0, 0, 1, 1, 0, 0, false)
-	grid.AddItem(c.statusTables[status], 1, 0, 1, 1, 0, 0, true)
+	grid.AddItem(header, 0, 0, headerRows, 1, 0, 0, false)
+	grid.AddItem(c.errorText, headerRows+1, 0, errorTextRows, 1, 0, 0, false)
+	grid.AddItem(c.statusTables[status], headerRows+errorTextRows+1, 0, headerRows*2, 1, 0, 0, true)
 
 	return grid
 }

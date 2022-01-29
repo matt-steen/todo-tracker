@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"os"
 
 	"github.com/gdamore/tcell/v2"
@@ -12,6 +13,8 @@ import (
 func (c *Controller) handleKeys(evt *tcell.EventKey) *tcell.EventKey {
 	key := AsKey(evt)
 	if k, ok := c.events[key]; ok {
+		c.setErrorText("")
+
 		return k.Action(evt)
 	}
 
@@ -21,6 +24,8 @@ func (c *Controller) handleKeys(evt *tcell.EventKey) *tcell.EventKey {
 func (c *Controller) handleFormKeys(evt *tcell.EventKey) *tcell.EventKey {
 	key := AsKey(evt)
 	if k, ok := c.formEvents[key]; ok {
+		c.setErrorText("")
+
 		return k.Action(evt)
 	}
 
@@ -82,22 +87,7 @@ func (c *Controller) getMoveAction(status string) func(key *tcell.EventKey) *tce
 	return func(key *tcell.EventKey) *tcell.EventKey {
 		err := c.db.ChangeStatus(c.ctx, c.selectedTodo, c.selectedStatus, c.db.Statuses[status])
 		if err != nil {
-			title := "?"
-			if c.selectedTodo != nil {
-				title = c.selectedTodo.Title
-			}
-
-			name := ""
-			if c.selectedStatus != nil {
-				name = c.selectedStatus.Name
-			}
-
-			log.Warn().Err(err).Msgf(
-				"error while trying to change status from '%s' to '%s' for todo '%s'.",
-				name,
-				status,
-				title,
-			)
+			c.setErrorText(err.Error())
 
 			return key
 		}
@@ -217,7 +207,7 @@ func (c *Controller) getRerankAction(direction string) func(key *tcell.EventKey)
 
 		err := moveFunc(c.ctx, c.selectedTodo)
 		if err != nil {
-			log.Error().Err(err).Msgf("error moving %s", direction)
+			c.setErrorText(fmt.Sprintf("error moving %s: %s", direction, err))
 
 			return key
 		}
@@ -246,7 +236,7 @@ func (c *Controller) initExitEvent(events map[tcell.Key]KeyEvent) {
 		Action: func(key *tcell.EventKey) *tcell.EventKey {
 			c.app.Stop()
 
-			log.Info().Msg("terminating application")
+			log.Info().Msg("exiting application")
 
 			os.Exit(0)
 
