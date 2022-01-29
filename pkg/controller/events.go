@@ -9,28 +9,6 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// TODO (mvp): organize/refactor event setup
-
-func (c *Controller) initEvents() {
-	c.events = map[tcell.Key]KeyEvent{}
-	c.formEvents = map[tcell.Key]KeyEvent{}
-
-	c.initShowEvents(c.events)
-
-	c.initNewEvent(c.events)
-	c.initEditEvent(c.events)
-
-	c.initAddLabelEvent(c.events)
-	c.initRemoveLabelEvent(c.events)
-
-	c.initMoveEvents(c.events)
-	c.initRerankEvents(c.events)
-
-	c.initExitEvent(c.events)
-
-	c.initCancelEvent(c.formEvents)
-}
-
 func (c *Controller) handleKeys(evt *tcell.EventKey) *tcell.EventKey {
 	key := AsKey(evt)
 	if k, ok := c.events[key]; ok {
@@ -49,128 +27,20 @@ func (c *Controller) handleEditKeys(evt *tcell.EventKey) *tcell.EventKey {
 	return evt
 }
 
-func (c *Controller) getExitAction() func(key *tcell.EventKey) *tcell.EventKey {
-	return func(key *tcell.EventKey) *tcell.EventKey {
-		c.app.Stop()
+func (c *Controller) initEvents() {
+	c.events = map[tcell.Key]KeyEvent{}
+	c.formEvents = map[tcell.Key]KeyEvent{}
 
-		log.Info().Msg("terminating application")
+	c.initShowEvents(c.events)
+	c.initMoveEvents(c.events)
 
-		os.Exit(0)
+	c.initFormEvents(c.events)
+	c.initLabelEvents(c.events)
 
-		return key
-	}
-}
+	c.initRerankEvents(c.events)
+	c.initExitEvent(c.events)
 
-func (c *Controller) initExitEvent(events map[tcell.Key]KeyEvent) {
-	events[KeyQ] = KeyEvent{
-		Description: "Exit",
-		Action:      c.getExitAction(),
-	}
-}
-
-func (c *Controller) getCancelAction() func(key *tcell.EventKey) *tcell.EventKey {
-	return func(key *tcell.EventKey) *tcell.EventKey {
-		log.Debug().Msg("cancelling update/creation in progress")
-
-		status := db.StatusClosed
-		if c.selectedStatus != nil {
-			status = c.selectedStatus.Name
-		}
-
-		c.showStatus(status)
-
-		return key
-	}
-}
-
-func (c *Controller) initCancelEvent(events map[tcell.Key]KeyEvent) {
-	events[tcell.KeyEscape] = KeyEvent{
-		Description: "Cancel",
-		Action:      c.getCancelAction(),
-	}
-}
-
-func (c *Controller) initNewEvent(events map[tcell.Key]KeyEvent) {
-	events[KeyShiftN] = KeyEvent{
-		Description: "New Todo",
-		Action: func(key *tcell.EventKey) *tcell.EventKey {
-			c.titleField.SetText("")
-			c.descField.SetText("")
-
-			c.setSelectedTodo(-1, nil)
-			c.switchToForm()
-
-			return nil
-		},
-	}
-}
-
-func (c *Controller) getEditAction() func(key *tcell.EventKey) *tcell.EventKey {
-	log.Debug().Msgf("in getEditAction. c.selectedTodo: %p", c.selectedTodo)
-
-	return func(key *tcell.EventKey) *tcell.EventKey {
-		if c.selectedTodo == nil {
-			log.Debug().Msgf("cannot edit: c.selectedTodo is nil. selectedStatus: %p", c.selectedStatus)
-
-			return key
-		}
-
-		c.titleField.SetText(c.selectedTodo.Title)
-		c.descField.SetText(c.selectedTodo.Description)
-
-		log.Debug().Msgf("about to edit todo '%s", c.selectedTodo.Title)
-
-		c.switchToForm()
-
-		return nil
-	}
-}
-
-func (c *Controller) initEditEvent(events map[tcell.Key]KeyEvent) {
-	events[KeyShiftE] = KeyEvent{
-		Description: "Edit Todo",
-		Action:      c.getEditAction(),
-	}
-}
-
-func (c *Controller) initAddLabelEvent(events map[tcell.Key]KeyEvent) {
-	events[KeyShiftL] = KeyEvent{
-		Description: "Add Label",
-		Action: func(key *tcell.EventKey) *tcell.EventKey {
-			if c.selectedTodo == nil {
-				log.Debug().Msgf("cannot modify labels: c.selectedTodo is nil. selectedStatus: %p", c.selectedStatus)
-
-				return key
-			}
-
-			c.addLabel = true
-			c.switchToLabelForm()
-
-			return key
-		},
-	}
-}
-
-func (c *Controller) getRemoveLabelAction() func(key *tcell.EventKey) *tcell.EventKey {
-	return func(key *tcell.EventKey) *tcell.EventKey {
-		if c.selectedTodo == nil {
-			log.Debug().Msgf("cannot modify labels: c.selectedTodo is nil. selectedStatus: %p", c.selectedStatus)
-
-			return key
-		}
-
-		c.addLabel = false
-		c.switchToLabelForm()
-
-		return key
-	}
-}
-
-func (c *Controller) initRemoveLabelEvent(events map[tcell.Key]KeyEvent) {
-	events[KeyShiftR] = KeyEvent{
-		Description: "Remove Label",
-		Action:      c.getRemoveLabelAction(),
-	}
+	c.initCancelEvent(c.formEvents)
 }
 
 func (c *Controller) getShowAction(status string) func(key *tcell.EventKey) *tcell.EventKey {
@@ -205,40 +75,6 @@ func (c *Controller) initShowEvents(events map[tcell.Key]KeyEvent) {
 	events[KeyA] = KeyEvent{
 		Description: "Show Abandoned",
 		Action:      c.getShowAction(db.StatusAbandoned),
-	}
-}
-
-func (c *Controller) getRerankAction(direction string) func(key *tcell.EventKey) *tcell.EventKey {
-	return func(key *tcell.EventKey) *tcell.EventKey {
-		var moveFunc func(ctx context.Context, todo *db.Todo) error
-		if direction == "up" {
-			moveFunc = c.db.MoveUp
-		} else {
-			moveFunc = c.db.MoveDown
-		}
-
-		err := moveFunc(c.ctx, c.selectedTodo)
-		if err != nil {
-			log.Error().Err(err).Msgf("error moving %s", direction)
-
-			return key
-		}
-
-		c.updateTableSelection(c.selectedStatus.Name, c.selectedTodo.Rank)
-
-		return key
-	}
-}
-
-func (c *Controller) initRerankEvents(events map[tcell.Key]KeyEvent) {
-	events[KeyShiftK] = KeyEvent{
-		Description: "Shift Up",
-		Action:      c.getRerankAction("up"),
-	}
-
-	events[KeyShiftJ] = KeyEvent{
-		Description: "Shift Down",
-		Action:      c.getRerankAction("down"),
 	}
 }
 
@@ -298,5 +134,141 @@ func (c *Controller) initMoveEvents(events map[tcell.Key]KeyEvent) {
 	events[KeyShiftA] = KeyEvent{
 		Description: "Move to Abandoned",
 		Action:      c.getMoveAction(db.StatusAbandoned),
+	}
+}
+
+func (c *Controller) initFormEvents(events map[tcell.Key]KeyEvent) {
+	events[KeyShiftN] = KeyEvent{
+		Description: "New Todo",
+		Action: func(key *tcell.EventKey) *tcell.EventKey {
+			c.titleField.SetText("")
+			c.descField.SetText("")
+
+			c.setSelectedTodo(-1, nil)
+			c.switchToForm()
+
+			return nil
+		},
+	}
+
+	events[KeyShiftE] = KeyEvent{
+		Description: "Edit Todo",
+		Action: func(key *tcell.EventKey) *tcell.EventKey {
+			if c.selectedTodo == nil {
+				log.Debug().Msgf("cannot edit: c.selectedTodo is nil. selectedStatus: %p", c.selectedStatus)
+
+				return key
+			}
+
+			c.titleField.SetText(c.selectedTodo.Title)
+			c.descField.SetText(c.selectedTodo.Description)
+
+			log.Debug().Msgf("about to edit todo '%s", c.selectedTodo.Title)
+
+			c.switchToForm()
+
+			return nil
+		},
+	}
+}
+
+func (c *Controller) initLabelEvents(events map[tcell.Key]KeyEvent) {
+	events[KeyShiftL] = KeyEvent{
+		Description: "Add Label",
+		Action: func(key *tcell.EventKey) *tcell.EventKey {
+			if c.selectedTodo == nil {
+				log.Debug().Msgf("cannot modify labels: c.selectedTodo is nil. selectedStatus: %p", c.selectedStatus)
+
+				return key
+			}
+
+			c.addLabel = true
+			c.switchToLabelForm()
+
+			return key
+		},
+	}
+
+	events[KeyShiftR] = KeyEvent{
+		Description: "Remove Label",
+		Action: func(key *tcell.EventKey) *tcell.EventKey {
+			if c.selectedTodo == nil {
+				log.Debug().Msgf("cannot modify labels: c.selectedTodo is nil. selectedStatus: %p", c.selectedStatus)
+
+				return key
+			}
+
+			c.addLabel = false
+			c.switchToLabelForm()
+
+			return key
+		},
+	}
+}
+
+func (c *Controller) getRerankAction(direction string) func(key *tcell.EventKey) *tcell.EventKey {
+	return func(key *tcell.EventKey) *tcell.EventKey {
+		var moveFunc func(ctx context.Context, todo *db.Todo) error
+		if direction == "up" {
+			moveFunc = c.db.MoveUp
+		} else {
+			moveFunc = c.db.MoveDown
+		}
+
+		err := moveFunc(c.ctx, c.selectedTodo)
+		if err != nil {
+			log.Error().Err(err).Msgf("error moving %s", direction)
+
+			return key
+		}
+
+		c.updateTableSelection(c.selectedStatus.Name, c.selectedTodo.Rank)
+
+		return key
+	}
+}
+
+func (c *Controller) initRerankEvents(events map[tcell.Key]KeyEvent) {
+	events[KeyShiftK] = KeyEvent{
+		Description: "Shift Up",
+		Action:      c.getRerankAction("up"),
+	}
+
+	events[KeyShiftJ] = KeyEvent{
+		Description: "Shift Down",
+		Action:      c.getRerankAction("down"),
+	}
+}
+
+func (c *Controller) initExitEvent(events map[tcell.Key]KeyEvent) {
+	events[KeyQ] = KeyEvent{
+		Description: "Exit",
+		Action: func(key *tcell.EventKey) *tcell.EventKey {
+			c.app.Stop()
+
+			log.Info().Msg("terminating application")
+
+			os.Exit(0)
+
+			return key
+		},
+	}
+}
+
+func (c *Controller) initCancelEvent(events map[tcell.Key]KeyEvent) {
+	events[tcell.KeyEscape] = KeyEvent{
+		Description: "Cancel",
+		Action: func(key *tcell.EventKey) *tcell.EventKey {
+			log.Debug().Msg("cancelling update/creation in progress")
+
+			status := db.StatusClosed
+			if c.selectedStatus != nil {
+				status = c.selectedStatus.Name
+			}
+
+			c.showStatus(status)
+
+			return key
+		},
 	}
 }
