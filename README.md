@@ -9,7 +9,7 @@ Inspired by a suggestion from [4,000 Weeks](https://www.goodreads.com/book/show/
 
 ## Getting started
 
-To build and launch the app:
+To build and launch the app, [install go](https://go.dev/doc/install) and checkout the code:
 
 ```bash
 $ make
