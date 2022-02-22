@@ -107,7 +107,7 @@ func (c *Controller) initMoveEvents(events map[tcell.Key]KeyEvent) {
 	}
 
 	events[KeyShiftC] = KeyEvent{
-		Description: "Move to Closd",
+		Description: "Move to Closed",
 		Action:      c.getMoveAction(db.StatusClosed),
 	}
 
