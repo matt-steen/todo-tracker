@@ -19,6 +19,8 @@ import (
 // which encourages focus and prioritization.
 const MaxClosedTodos = 5
 
+const updateRankSQL = `UPDATE todo SET rank=$1 WHERE id=$2`
+
 //go:embed base.sql
 var baseSQL string
 
@@ -525,8 +527,6 @@ func (d *Database) MoveUp(ctx context.Context, todo *Todo) error {
 		return fmt.Errorf("error opening transaction: %w", err)
 	}
 
-	updateRankSQL := `UPDATE todo SET rank=$1 WHERE id=$2`
-
 	_, err = txn.ExecContext(ctx, updateRankSQL, todo.Rank-1, todo.id)
 	if err != nil {
 		return rollbackOnError(txn, fmt.Errorf("error updating todo: %w", err))
@@ -574,6 +574,100 @@ func (d *Database) MoveDown(ctx context.Context, todo *Todo) error {
 	)
 
 	return d.MoveUp(ctx, nextTodo)
+}
+
+// MoveToTop moves a Todo to the top of the list and moves everything else down (meaning it
+// increases all higher rankings by 1)
+// If the first Todo is passed, return ErrCantMoveFirstTodoUp.
+func (d *Database) MoveToTop(ctx context.Context, todo *Todo) error {
+	if todo == nil {
+		return ErrNilTodo
+	}
+
+	if todo.Rank == 0 {
+		return ErrCantMoveFirstTodoUp
+	}
+
+	todos := todo.Status.Todos
+
+	txn, err := d.conn.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("error opening transaction: %w", err)
+	}
+
+	updateRanksSQL := `UPDATE todo SET rank=rank + 1 WHERE rank < $1`
+
+	_, err = txn.ExecContext(ctx, updateRanksSQL, todo.Rank)
+	if err != nil {
+		return rollbackOnError(txn, fmt.Errorf("error updating todo: %w", err))
+	}
+
+	_, err = txn.ExecContext(ctx, updateRankSQL, 0, todo.id)
+	if err != nil {
+		return rollbackOnError(txn, fmt.Errorf("error updating todo: %w", err))
+	}
+
+	err = txn.Commit()
+	if err != nil {
+		return fmt.Errorf("error committing changes: %w", err)
+	}
+
+	for idx := todo.Rank - 1; idx > -1; idx-- {
+		todos[idx].Rank++
+		todos[idx+1] = todos[idx]
+	}
+
+	todo.Rank = 0
+	todos[0] = todo
+
+	return nil
+}
+
+// MoveToBottom moves a Todo to the bottom of the list and moves everything else up (meaning it
+// decreases all lower rankings by 1)
+// If the last Todo is passed, return ErrCantMoveLastTodoDown.
+func (d *Database) MoveToBottom(ctx context.Context, todo *Todo) error {
+	if todo == nil {
+		return ErrNilTodo
+	}
+
+	if todo.Rank >= len(todo.Status.Todos)-1 {
+		return ErrCantMoveLastTodoDown
+	}
+
+	todos := todo.Status.Todos
+
+	txn, err := d.conn.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("error opening transaction: %w", err)
+	}
+
+	updateRanksSQL := `UPDATE todo SET rank=rank - 1 WHERE rank > $1`
+
+	_, err = txn.ExecContext(ctx, updateRanksSQL, todo.Rank)
+	if err != nil {
+		return rollbackOnError(txn, fmt.Errorf("error updating todo: %w", err))
+	}
+
+	_, err = txn.ExecContext(ctx, updateRankSQL, len(todos)-1, todo.id)
+	if err != nil {
+		return rollbackOnError(txn, fmt.Errorf("error updating todo: %w", err))
+	}
+
+	err = txn.Commit()
+	if err != nil {
+		return fmt.Errorf("error committing changes: %w", err)
+	}
+
+	for idx := todo.Rank + 1; idx < len(todos); idx++ {
+		todos[idx].Rank--
+		todos[idx-1] = todos[idx]
+	}
+
+	todo.Rank = len(todos) - 1
+	todos[len(todos)-1] = todo
+
+	return nil
 }
 
 // AddTodoLabel adds a Label to a Todo.

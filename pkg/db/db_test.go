@@ -526,3 +526,110 @@ func TestMoveDownTodo(t *testing.T) {
 	assert.Equal(todo2.Title, database.Statuses[db.StatusOpen].Todos[0].Title)
 	assert.Equal(todo1.Title, database.Statuses[db.StatusOpen].Todos[1].Title)
 }
+
+func TestMoveTodoToTop(t *testing.T) {
+	t.Parallel()
+
+	assert := assert.New(t)
+
+	ctx := context.Background()
+
+	tempFile, err := ioutil.TempFile("/tmp", "test_new_database*")
+	assert.Nil(err)
+
+	database, err := db.NewDatabase(ctx, tempFile.Name())
+	assert.NotNil(database)
+	assert.Nil(err)
+
+	defer database.Close()
+
+	todo1 := addTodo(assert, database, "todo 1", "")
+	todo2 := addTodo(assert, database, "todo 2", "")
+	todo3 := addTodo(assert, database, "todo 3", "")
+
+	assert.Equal(0, todo1.Rank)
+	assert.Equal(1, todo2.Rank)
+	assert.Equal(2, todo3.Rank)
+
+	assert.Equal(todo1.Title, database.Statuses[db.StatusOpen].Todos[0].Title)
+	assert.Equal(todo2.Title, database.Statuses[db.StatusOpen].Todos[1].Title)
+	assert.Equal(todo3.Title, database.Statuses[db.StatusOpen].Todos[2].Title)
+
+	err = database.MoveToTop(context.Background(), todo1)
+	assert.ErrorIs(err, db.ErrCantMoveFirstTodoUp)
+
+	err = database.MoveToTop(context.Background(), todo3)
+	assert.Nil(err)
+
+	assert.Equal(0, todo3.Rank)
+	assert.Equal(1, todo1.Rank)
+	assert.Equal(2, todo2.Rank)
+
+	assert.Equal(todo3.Title, database.Statuses[db.StatusOpen].Todos[0].Title)
+	assert.Equal(todo1.Title, database.Statuses[db.StatusOpen].Todos[1].Title)
+	assert.Equal(todo2.Title, database.Statuses[db.StatusOpen].Todos[2].Title)
+
+	// confirm that data was saved correctly
+	database2, err := db.NewDatabase(ctx, tempFile.Name())
+	assert.Nil(err)
+
+	defer database2.Close()
+
+	// TODO!
+	assert.Equal(todo3.Title, database2.Statuses[db.StatusOpen].Todos[0].Title)
+	assert.Equal(todo1.Title, database2.Statuses[db.StatusOpen].Todos[1].Title)
+	assert.Equal(todo2.Title, database2.Statuses[db.StatusOpen].Todos[2].Title)
+}
+
+func TestMoveTodoToBottom(t *testing.T) {
+	t.Parallel()
+
+	assert := assert.New(t)
+
+	ctx := context.Background()
+
+	tempFile, err := ioutil.TempFile("/tmp", "test_new_database*")
+	assert.Nil(err)
+
+	database, err := db.NewDatabase(ctx, tempFile.Name())
+	assert.NotNil(database)
+	assert.Nil(err)
+
+	defer database.Close()
+
+	todo1 := addTodo(assert, database, "todo 1", "")
+	todo2 := addTodo(assert, database, "todo 2", "")
+	todo3 := addTodo(assert, database, "todo 3", "")
+
+	assert.Equal(0, todo1.Rank)
+	assert.Equal(1, todo2.Rank)
+	assert.Equal(2, todo3.Rank)
+
+	assert.Equal(todo1.Title, database.Statuses[db.StatusOpen].Todos[0].Title)
+	assert.Equal(todo2.Title, database.Statuses[db.StatusOpen].Todos[1].Title)
+	assert.Equal(todo3.Title, database.Statuses[db.StatusOpen].Todos[2].Title)
+
+	err = database.MoveToBottom(ctx, todo3)
+	assert.ErrorIs(err, db.ErrCantMoveLastTodoDown)
+
+	err = database.MoveToBottom(context.Background(), todo1)
+	assert.Nil(err)
+
+	assert.Equal(0, todo2.Rank)
+	assert.Equal(1, todo3.Rank)
+	assert.Equal(2, todo1.Rank)
+
+	assert.Equal(todo2.Title, database.Statuses[db.StatusOpen].Todos[0].Title)
+	assert.Equal(todo3.Title, database.Statuses[db.StatusOpen].Todos[1].Title)
+	assert.Equal(todo1.Title, database.Statuses[db.StatusOpen].Todos[2].Title)
+
+	// confirm that data was saved correctly
+	database2, err := db.NewDatabase(ctx, tempFile.Name())
+	assert.Nil(err)
+
+	defer database2.Close()
+
+	assert.Equal(todo2.Title, database2.Statuses[db.StatusOpen].Todos[0].Title)
+	assert.Equal(todo3.Title, database2.Statuses[db.StatusOpen].Todos[1].Title)
+	assert.Equal(todo1.Title, database2.Statuses[db.StatusOpen].Todos[2].Title)
+}

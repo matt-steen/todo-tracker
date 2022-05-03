@@ -199,10 +199,16 @@ func (c *Controller) initLabelEvents(events map[tcell.Key]KeyEvent) {
 func (c *Controller) getRerankAction(direction string) func(key *tcell.EventKey) *tcell.EventKey {
 	return func(key *tcell.EventKey) *tcell.EventKey {
 		var moveFunc func(ctx context.Context, todo *db.Todo) error
-		if direction == "up" {
+
+		switch direction {
+		case "up":
 			moveFunc = c.db.MoveUp
-		} else {
+		case "down":
 			moveFunc = c.db.MoveDown
+		case "top":
+			moveFunc = c.db.MoveToTop
+		case "bottom":
+			moveFunc = c.db.MoveToBottom
 		}
 
 		err := moveFunc(c.ctx, c.selectedTodo)
@@ -227,6 +233,16 @@ func (c *Controller) initRerankEvents(events map[tcell.Key]KeyEvent) {
 	events[KeyShiftJ] = KeyEvent{
 		Description: "Shift Down",
 		Action:      c.getRerankAction("down"),
+	}
+
+	events[KeyShiftT] = KeyEvent{
+		Description: "Shift to Top",
+		Action:      c.getRerankAction("top"),
+	}
+
+	events[KeyShiftB] = KeyEvent{
+		Description: "Shift to Bottom",
+		Action:      c.getRerankAction("bottom"),
 	}
 }
 
