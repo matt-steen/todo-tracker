@@ -160,6 +160,27 @@ func (c *Controller) initFormEvents(events map[tcell.Key]KeyEvent) {
 			return nil
 		},
 	}
+
+	events[KeyShiftU] = KeyEvent{
+		Description: "dUplicate Todo",
+		Action: func(key *tcell.EventKey) *tcell.EventKey {
+			if c.selectedTodo == nil {
+				log.Debug().Msgf("cannot duplicate: c.selectedTodo is nil. selectedStatus: %p", c.selectedStatus)
+
+				return key
+			}
+
+			c.titleField.SetText(c.selectedTodo.Title)
+			c.descField.SetText(c.selectedTodo.Description)
+
+			log.Debug().Msgf("about to duplicate todo '%s", c.selectedTodo.Title)
+
+			c.setSelectedTodo(-1, nil)
+			c.switchToForm()
+
+			return nil
+		},
+	}
 }
 
 func (c *Controller) initLabelEvents(events map[tcell.Key]KeyEvent) {
