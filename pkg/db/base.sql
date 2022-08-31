@@ -22,6 +22,9 @@ CREATE TABLE IF NOT EXISTS todo (
 	FOREIGN KEY (status_id) REFERENCES status(id)
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS unq_todo_status_id_rank
+	ON todo (status_id, rank);
+
 CREATE TABLE IF NOT EXISTS label (
 	id INTEGER PRIMARY KEY AUTOINCREMENT, 
 	name VARCHAR(20) UNIQUE NOT NULL

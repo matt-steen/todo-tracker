@@ -17,8 +17,9 @@ linters:
     # dupl doesn't correctly detect duplicate lines
     - dupl
 
-    # exhaustruct requires that all constructed structs include all values, even if one value is the db id for a new object
+    # exhaustruct and exhaustivestruct require that all constructed structs include all values, even if one value is the db id for a new object
     - exhaustruct
+    - exhaustivestruct
 
   fast: false
 

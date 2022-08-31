@@ -63,14 +63,14 @@ func (s *StatusContent) GetCell(row, col int) *tview.TableCell {
 		return tview.NewTableCell(todo.Description).SetExpansion(descTitleRatio)
 	case 2:
 		labels := ""
-		for _, l := range todo.Labels {
+		for _, label := range todo.Labels {
 			if len(labels) > 0 {
 				labels += ", "
 			}
 
 			colors := labelColors()
 
-			labels += fmt.Sprintf("[%s]%s", colors[l.ID%len(colors)], l.Name)
+			labels += fmt.Sprintf("[%s]%s", colors[label.ID%len(colors)], label.Name)
 		}
 
 		return tview.NewTableCell(labels).SetExpansion(1)

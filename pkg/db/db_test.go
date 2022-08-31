@@ -3,7 +3,7 @@ package db_test
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/matt-steen/todo-tracker/pkg/db"
@@ -11,7 +11,7 @@ import (
 )
 
 func getDB(assert *assert.Assertions) *db.Database {
-	tempFile, err := ioutil.TempFile("/tmp", "test_new_database*")
+	tempFile, err := os.CreateTemp("/tmp", "test_new_database*")
 	assert.Nil(err)
 
 	database, err := db.NewDatabase(context.Background(), tempFile.Name())
@@ -51,7 +51,7 @@ func TestNewDatabase(t *testing.T) {
 
 	assert := assert.New(t)
 
-	tempFile, err := ioutil.TempFile("/tmp", "test_new_database")
+	tempFile, err := os.CreateTemp("/tmp", "test_new_database")
 	assert.Nil(err)
 
 	database, err := db.NewDatabase(context.Background(), tempFile.Name())
@@ -65,7 +65,7 @@ func TestNewDatabaseIdempotent(t *testing.T) {
 
 	assert := assert.New(t)
 
-	tempFile, err := ioutil.TempFile("/tmp", "test_new_database*")
+	tempFile, err := os.CreateTemp("/tmp", "test_new_database*")
 	assert.Nil(err)
 
 	database, err := db.NewDatabase(context.Background(), tempFile.Name())
@@ -95,7 +95,7 @@ func TestLoadComplexState(t *testing.T) {
 
 	ctx := context.Background()
 
-	tempFile, err := ioutil.TempFile("/tmp", "test_new_database*")
+	tempFile, err := os.CreateTemp("/tmp", "test_new_database*")
 	assert.Nil(err)
 
 	database, err := db.NewDatabase(ctx, tempFile.Name())
@@ -165,7 +165,7 @@ func TestUpdateLabel(t *testing.T) {
 
 	ctx := context.Background()
 
-	tempFile, err := ioutil.TempFile("/tmp", "test_new_database*")
+	tempFile, err := os.CreateTemp("/tmp", "test_new_database*")
 	assert.Nil(err)
 
 	database, err := db.NewDatabase(ctx, tempFile.Name())
@@ -354,7 +354,7 @@ func TestChangeStatus(t *testing.T) {
 	assert.Equal(3, len(database.Statuses[db.StatusOpen].Todos))
 }
 
-func initTestChangeStatusErrors(t *testing.T, assert *assert.Assertions) (*db.Database, map[string]*db.Todo) {
+func initTestChangeStatusErrors(assert *assert.Assertions) (*db.Database, map[string]*db.Todo) {
 	database := getDB(assert)
 
 	todos := map[string]*db.Todo{
@@ -421,7 +421,7 @@ func TestChangeStatusErrors(t *testing.T) {
 		},
 	}
 
-	database, todos := initTestChangeStatusErrors(t, assert)
+	database, todos := initTestChangeStatusErrors(assert)
 	defer database.Close()
 
 	for _, testCase := range cases {
@@ -534,7 +534,7 @@ func TestMoveTodoToTop(t *testing.T) {
 
 	ctx := context.Background()
 
-	tempFile, err := ioutil.TempFile("/tmp", "test_new_database*")
+	tempFile, err := os.CreateTemp("/tmp", "test_new_database*")
 	assert.Nil(err)
 
 	database, err := db.NewDatabase(ctx, tempFile.Name())
@@ -546,10 +546,31 @@ func TestMoveTodoToTop(t *testing.T) {
 	todo1 := addTodo(assert, database, "todo 1", "")
 	todo2 := addTodo(assert, database, "todo 2", "")
 	todo3 := addTodo(assert, database, "todo 3", "")
+	todo4 := addTodo(assert, database, "todo 4", "")
+	todo5 := addTodo(assert, database, "todo 5", "")
+
+	// move todos 4 and 5 to closed to confirm that their ranks don't change
+	err = database.ChangeStatus(
+		context.Background(),
+		todo4,
+		database.Statuses[db.StatusOpen],
+		database.Statuses[db.StatusClosed],
+	)
+	assert.Nil(err)
+
+	err = database.ChangeStatus(
+		context.Background(),
+		todo5,
+		database.Statuses[db.StatusOpen],
+		database.Statuses[db.StatusClosed],
+	)
+	assert.Nil(err)
 
 	assert.Equal(0, todo1.Rank)
 	assert.Equal(1, todo2.Rank)
 	assert.Equal(2, todo3.Rank)
+	assert.Equal(0, todo4.Rank)
+	assert.Equal(1, todo5.Rank)
 
 	assert.Equal(todo1.Title, database.Statuses[db.StatusOpen].Todos[0].Title)
 	assert.Equal(todo2.Title, database.Statuses[db.StatusOpen].Todos[1].Title)
@@ -575,10 +596,11 @@ func TestMoveTodoToTop(t *testing.T) {
 
 	defer database2.Close()
 
-	// TODO!
 	assert.Equal(todo3.Title, database2.Statuses[db.StatusOpen].Todos[0].Title)
 	assert.Equal(todo1.Title, database2.Statuses[db.StatusOpen].Todos[1].Title)
 	assert.Equal(todo2.Title, database2.Statuses[db.StatusOpen].Todos[2].Title)
+	assert.Equal(todo4.Title, database2.Statuses[db.StatusClosed].Todos[0].Title)
+	assert.Equal(todo5.Title, database2.Statuses[db.StatusClosed].Todos[1].Title)
 }
 
 func TestMoveTodoToBottom(t *testing.T) {
@@ -588,7 +610,7 @@ func TestMoveTodoToBottom(t *testing.T) {
 
 	ctx := context.Background()
 
-	tempFile, err := ioutil.TempFile("/tmp", "test_new_database*")
+	tempFile, err := os.CreateTemp("/tmp", "test_new_database*")
 	assert.Nil(err)
 
 	database, err := db.NewDatabase(ctx, tempFile.Name())

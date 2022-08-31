@@ -527,6 +527,12 @@ func (d *Database) MoveUp(ctx context.Context, todo *Todo) error {
 		return fmt.Errorf("error opening transaction: %w", err)
 	}
 
+	// swapping values fails since we have a unique index on status_id + rank; set to -1 temporarily
+	_, err = txn.ExecContext(ctx, updateRankSQL, -1, prevTodo.id)
+	if err != nil {
+		return rollbackOnError(txn, fmt.Errorf("error updating todo: %w", err))
+	}
+
 	_, err = txn.ExecContext(ctx, updateRankSQL, todo.Rank-1, todo.id)
 	if err != nil {
 		return rollbackOnError(txn, fmt.Errorf("error updating todo: %w", err))
@@ -595,16 +601,27 @@ func (d *Database) MoveToTop(ctx context.Context, todo *Todo) error {
 		return fmt.Errorf("error opening transaction: %w", err)
 	}
 
-	updateRanksSQL := `UPDATE todo SET rank=rank + 1 WHERE rank < $1`
+	// updates are executed in arbitrary order, so to avoid violating the unique
+	// index on status_id + rank, we set rank to a negative value for all todos
+	// with higher rankings, update the rank of the desired todo, and then correctly
+	// set other ranks to positive values.
+	updateRanksNegativeSQL := `UPDATE todo SET rank=(rank + 1) * -1 WHERE rank < $1 AND status_id = $2`
 
-	_, err = txn.ExecContext(ctx, updateRanksSQL, todo.Rank)
+	_, err = txn.ExecContext(ctx, updateRanksNegativeSQL, todo.Rank, todo.Status.id)
 	if err != nil {
-		return rollbackOnError(txn, fmt.Errorf("error updating todo: %w", err))
+		return rollbackOnError(txn, fmt.Errorf("error temp updating todos: %w", err))
 	}
 
 	_, err = txn.ExecContext(ctx, updateRankSQL, 0, todo.id)
 	if err != nil {
 		return rollbackOnError(txn, fmt.Errorf("error updating todo: %w", err))
+	}
+
+	updateRanksSQL := `UPDATE todo SET rank=rank * -1 WHERE rank < 0 AND status_id = $1`
+
+	_, err = txn.ExecContext(ctx, updateRanksSQL, todo.Status.id)
+	if err != nil {
+		return rollbackOnError(txn, fmt.Errorf("error updating todos: %w", err))
 	}
 
 	err = txn.Commit()
@@ -642,11 +659,17 @@ func (d *Database) MoveToBottom(ctx context.Context, todo *Todo) error {
 		return fmt.Errorf("error opening transaction: %w", err)
 	}
 
-	updateRanksSQL := `UPDATE todo SET rank=rank - 1 WHERE rank > $1`
-
-	_, err = txn.ExecContext(ctx, updateRanksSQL, todo.Rank)
+	// set rank to -1 temporarily to avoid violating unique index on status_id + rank
+	_, err = txn.ExecContext(ctx, updateRankSQL, -1, todo.id)
 	if err != nil {
-		return rollbackOnError(txn, fmt.Errorf("error updating todo: %w", err))
+		return rollbackOnError(txn, fmt.Errorf("error temp updating todo: %w", err))
+	}
+
+	updateRanksSQL := `UPDATE todo SET rank=rank - 1 WHERE rank > $1 AND status_id = $2`
+
+	_, err = txn.ExecContext(ctx, updateRanksSQL, todo.Rank, todo.Status.id)
+	if err != nil {
+		return rollbackOnError(txn, fmt.Errorf("error updating todos: %w", err))
 	}
 
 	_, err = txn.ExecContext(ctx, updateRankSQL, len(todos)-1, todo.id)
