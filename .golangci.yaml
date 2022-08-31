@@ -3,9 +3,13 @@ linters:
   disable:
     # deprecated:
     - golint
+    - ifshort
     - interfacer
     - maligned
     - scopelint
+
+    # gci - giving cryptic errors
+    - gci
 
     # godox doesn't allow TODO in comments
     - godox
@@ -13,8 +17,8 @@ linters:
     # dupl doesn't correctly detect duplicate lines
     - dupl
 
-    # exhaustivestruct requires that all constructed structs include all values, even if one value is the db id for a new object
-    - exhaustivestruct
+    # exhaustruct requires that all constructed structs include all values, even if one value is the db id for a new object
+    - exhaustruct
 
   fast: false
 
